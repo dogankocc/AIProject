@@ -86,6 +86,15 @@ size_t Tensor::Size() const
     return ComputeElementCount(m_shape);
 }
 
+size_t Tensor::RawSize() const
+{
+    if (!m_data)
+    {
+        return 0;
+    }
+    return m_data->size();
+}
+
 bool Tensor::IsUnique() const
 {
     return m_data ? m_data.use_count() == 1 : true;
@@ -96,17 +105,19 @@ long Tensor::UseCount() const
     return m_data ? m_data.use_count() : 0;
 }
 
-size_t Tensor::RawSize() const
+bool Tensor::IsContiguous() const
 {
-    if (!m_data)
-    {
-        return 0;
-    }
-    return m_data->size();
+    return m_strides == ComputeContiguousStrides(m_shape);
 }
 
 void Tensor::Reshape(const Shape& newShape)
 {
+    if (!IsContiguous())
+    {
+        throw std::runtime_error(
+            "Reshape is only valid on contiguous tensors. Use Clone() first.");
+    }
+
     const size_t newSize = ComputeElementCount(newShape);
 
     if (newSize != Size())
@@ -126,10 +137,33 @@ void Tensor::Fill(float value)
         return;
     }
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (IsContiguous())
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        At(indices) = value;
+        // Hızlı yol: doğrudan ham veri üzerinde
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            (*m_data)[i] = value;
+        }
+    }
+    else
+    {
+        // View: mantıksal erişim
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            // i'yi mantıksal indekslere dönüştürmek için
+            // Contiguous strideler kullan (i: 0,1,2,... mantıksal sıra)
+            Strides contigStrides = ComputeContiguousStrides(m_shape);
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            At(indices) = value;
+        }
     }
 }
 
@@ -138,28 +172,47 @@ void Tensor::Zero()
     Fill(0.0f);
 }
 
-float& Tensor::operator[](size_t index)
+// operator[]: HAM bellek indeksi
+float& Tensor::operator[](size_t rawIndex)
 {
-    Shape indices = OffsetToIndices(index, m_shape);
-    return At(indices);
+    return (*m_data)[rawIndex];
 }
 
-const float& Tensor::operator[](size_t index) const
+const float& Tensor::operator[](size_t rawIndex) const
 {
-    Shape indices = OffsetToIndices(index, m_shape);
-    return At(indices);
+    return (*m_data)[rawIndex];
 }
 
-float& Tensor::At(
-    const std::vector<size_t>& indices)
+// At(): MANTIKSAL indeks (her zaman güvenli)
+float& Tensor::At(const Shape& indices)
 {
     return (*m_data)[ComputeOffset(indices)];
 }
 
-const float& Tensor::At(
-    const std::vector<size_t>& indices) const
+const float& Tensor::At(const Shape& indices) const
 {
     return (*m_data)[ComputeOffset(indices)];
+}
+
+size_t Tensor::ComputeOffset(const Shape& indices) const
+{
+    if (indices.size() != m_shape.size())
+    {
+        throw std::invalid_argument("Index rank mismatch.");
+    }
+
+    size_t offset = 0;
+
+    for (size_t i = 0; i < indices.size(); ++i)
+    {
+        if (indices[i] >= m_shape[i])
+        {
+            throw std::out_of_range("Index out of range.");
+        }
+        offset += indices[i] * m_strides[i];
+    }
+
+    return offset;
 }
 
 Tensor Tensor::Clone() const
@@ -169,13 +222,33 @@ Tensor Tensor::Clone() const
         return Tensor();
     }
 
-    // Mantıksal sırayla kopyala (view'lar için contiguous yap)
+    // Sonuç her zaman Contiguous olur
     Tensor result(m_shape);
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (IsContiguous())
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        result.At(indices) = At(indices);
+        // Hızlı yol: doğrudan kopya
+        *result.m_data = *m_data;
+    }
+    else
+    {
+        // View: mantıksal sırayla kopyala
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            // i → mantıksal indeksler (contiguous mantıkta)
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            result[i] = At(indices);
+        }
     }
 
     return result;
@@ -188,32 +261,58 @@ Tensor Tensor::Transpose() const
         return *this;
     }
 
-    // Yeni shape: son iki ekseni yer değiştir
+    // Son iki ekseni yer değiştir
     Shape newShape = m_shape;
     std::swap(newShape[newShape.size() - 1], newShape[newShape.size() - 2]);
 
-    // Yeni strides: son iki ekseni yer değiştir
     Strides newStrides = m_strides;
     std::swap(newStrides[newStrides.size() - 1], newStrides[newStrides.size() - 2]);
 
-    // Aynı veriyi paylaşan yeni tensor (view)
+    // Aynı veriyi paylaşan view oluştur
     return Tensor(newShape, newStrides, m_data);
+}
+
+// Hızlı yol kontrolü: İki tensor da hem Contiguous hem aynı shape
+static bool AreBothContiguousAndSameShape(const Tensor& a, const Tensor& b)
+{
+    return a.IsContiguous() && b.IsContiguous() && (a.GetShape() == b.GetShape());
 }
 
 Tensor Tensor::operator+(const Tensor& other) const
 {
     if (m_shape != other.m_shape)
     {
-        throw std::invalid_argument(
-            "Shape mismatch.");
+        throw std::invalid_argument("Shape mismatch.");
     }
 
     Tensor result(m_shape);
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (AreBothContiguousAndSameShape(*this, other))
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        result.At(indices) = At(indices) + other.At(indices);
+        // HIZLI YOL
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = (*this)[i] + other[i];
+        }
+    }
+    else
+    {
+        // GENEL YOL (view'lar için)
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            result.At(indices) = At(indices) + other.At(indices);
+        }
     }
 
     return result;
@@ -223,16 +322,35 @@ Tensor Tensor::operator-(const Tensor& other) const
 {
     if (m_shape != other.m_shape)
     {
-        throw std::invalid_argument(
-            "Shape mismatch.");
+        throw std::invalid_argument("Shape mismatch.");
     }
 
     Tensor result(m_shape);
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (AreBothContiguousAndSameShape(*this, other))
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        result.At(indices) = At(indices) - other.At(indices);
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = (*this)[i] - other[i];
+        }
+    }
+    else
+    {
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            result.At(indices) = At(indices) - other.At(indices);
+        }
     }
 
     return result;
@@ -242,16 +360,35 @@ Tensor Tensor::operator*(const Tensor& other) const
 {
     if (m_shape != other.m_shape)
     {
-        throw std::invalid_argument(
-            "Shape mismatch.");
+        throw std::invalid_argument("Shape mismatch.");
     }
 
     Tensor result(m_shape);
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (AreBothContiguousAndSameShape(*this, other))
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        result.At(indices) = At(indices) * other.At(indices);
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = (*this)[i] * other[i];
+        }
+    }
+    else
+    {
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            result.At(indices) = At(indices) * other.At(indices);
+        }
     }
 
     return result;
@@ -261,10 +398,30 @@ Tensor Tensor::operator*(float scalar) const
 {
     Tensor result(m_shape);
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (IsContiguous())
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        result.At(indices) = At(indices) * scalar;
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = (*this)[i] * scalar;
+        }
+    }
+    else
+    {
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            result.At(indices) = At(indices) * scalar;
+        }
     }
 
     return result;
@@ -274,10 +431,30 @@ Tensor Tensor::operator/(float scalar) const
 {
     Tensor result(m_shape);
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (IsContiguous())
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        result.At(indices) = At(indices) / scalar;
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = (*this)[i] / scalar;
+        }
+    }
+    else
+    {
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            result.At(indices) = At(indices) / scalar;
+        }
     }
 
     return result;
@@ -287,14 +464,33 @@ Tensor& Tensor::operator+=(const Tensor& other)
 {
     if (m_shape != other.m_shape)
     {
-        throw std::invalid_argument(
-            "Shape mismatch.");
+        throw std::invalid_argument("Shape mismatch.");
     }
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (AreBothContiguousAndSameShape(*this, other))
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        At(indices) += other.At(indices);
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            (*this)[i] += other[i];
+        }
+    }
+    else
+    {
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            At(indices) += other.At(indices);
+        }
     }
 
     return *this;
@@ -304,14 +500,33 @@ Tensor& Tensor::operator-=(const Tensor& other)
 {
     if (m_shape != other.m_shape)
     {
-        throw std::invalid_argument(
-            "Shape mismatch.");
+        throw std::invalid_argument("Shape mismatch.");
     }
 
-    for (size_t i = 0; i < Size(); ++i)
+    if (AreBothContiguousAndSameShape(*this, other))
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        At(indices) -= other.At(indices);
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            (*this)[i] -= other[i];
+        }
+    }
+    else
+    {
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            At(indices) -= other.At(indices);
+        }
     }
 
     return *this;
@@ -319,15 +534,30 @@ Tensor& Tensor::operator-=(const Tensor& other)
 
 Tensor& Tensor::operator*=(float scalar)
 {
-    if (!m_data)
+    if (IsContiguous())
     {
-        return *this;
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            (*this)[i] *= scalar;
+        }
     }
-
-    for (size_t i = 0; i < Size(); ++i)
+    else
     {
-        Shape indices = OffsetToIndices(i, m_shape);
-        At(indices) *= scalar;
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+                remaining = remaining % contigStrides[dim];
+            }
+
+            At(indices) *= scalar;
+        }
     }
 
     return *this;
@@ -342,63 +572,23 @@ std::string Tensor::ToString() const
     for (size_t i = 0; i < m_shape.size(); ++i)
     {
         ss << m_shape[i];
-
-        if (i + 1 < m_shape.size())
-        {
-            ss << ", ";
-        }
+        if (i + 1 < m_shape.size()) ss << ", ";
     }
 
     ss << "], strides=[";
     for (size_t i = 0; i < m_strides.size(); ++i)
     {
         ss << m_strides[i];
-        if (i + 1 < m_strides.size())
-        {
-            ss << ", ";
-        }
+        if (i + 1 < m_strides.size()) ss << ", ";
     }
 
-    ss << "], use_count=" << UseCount() << ")";
+    ss << "], contiguous=" << (IsContiguous() ? "true" : "false");
+    ss << ", use_count=" << UseCount() << ")";
 
     return ss.str();
 }
 
-size_t Tensor::ComputeOffset(
-    const std::vector<size_t>& indices) const
-{
-    return ComputeOffsetWithStrides(indices, m_shape, m_strides);
-}
-
-size_t Tensor::ComputeOffsetWithStrides(
-    const std::vector<size_t>& indices,
-    const Shape& shape,
-    const Strides& strides)
-{
-    if (indices.size() != shape.size())
-    {
-        throw std::invalid_argument(
-            "Index rank mismatch.");
-    }
-
-    size_t offset = 0;
-
-    for (size_t i = 0; i < indices.size(); ++i)
-    {
-        if (indices[i] >= shape[i])
-        {
-            throw std::out_of_range(
-                "Index out of range.");
-        }
-
-        offset += indices[i] * strides[i];
-    }
-
-    return offset;
-}
-
-size_t Tensor::ComputeElementCount(
-    const Shape& shape)
+size_t Tensor::ComputeElementCount(const Shape& shape)
 {
     if (shape.empty())
     {
@@ -412,8 +602,7 @@ size_t Tensor::ComputeElementCount(
         std::multiplies<size_t>());
 }
 
-Tensor::Strides Tensor::ComputeContiguousStrides(
-    const Shape& shape)
+Tensor::Strides Tensor::ComputeContiguousStrides(const Shape& shape)
 {
     Strides strides(shape.size());
 
@@ -431,22 +620,4 @@ Tensor::Strides Tensor::ComputeContiguousStrides(
     }
 
     return strides;
-}
-
-Tensor::Shape Tensor::OffsetToIndices(
-    size_t offset,
-    const Shape& shape)
-{
-    Shape indices(shape.size());
-    Strides strides = ComputeContiguousStrides(shape);
-
-    size_t remaining = offset;
-
-    for (size_t i = 0; i < shape.size(); ++i)
-    {
-        indices[i] = remaining / strides[i];
-        remaining = remaining % strides[i];
-    }
-
-    return indices;
 }

@@ -35,50 +35,57 @@ public:
 
 public:
 
+    // Bellek doğrudan erişim
     float* Data();
     const float* Data() const;
 
+    // Özellikler
     const Shape& GetShape() const;
     const Strides& GetStrides() const;
 
     size_t Rank() const;
-    size_t Size() const;
+    size_t Size() const;           // Mantıksal eleman sayısı
+    size_t RawSize() const;        // Ham bellekteki toplam eleman
 
-    // Verinin benzersiz sahibi miyim?
+    // Paylaşım durumu
     bool IsUnique() const;
-
-    // Kaç tensor aynı veriyi paylaşıyor?
     long UseCount() const;
 
-    // Ham bellekteki toplam eleman sayısı (view'larda Size()'tan farklı olabilir)
-    size_t RawSize() const;
+    // Contiguous kontrolü: m_strides standart mı?
+    bool IsContiguous() const;
 
 public:
 
-    void Reshape(
-        const Shape& newShape);
+    // SADECE Contiguous Tensor üzerinde geçerli
+    void Reshape(const Shape& newShape);
 
+    // Tüm elemanları doldur
     void Fill(float value);
     void Zero();
 
 public:
 
-    float& operator[](size_t index);
-    const float& operator[](size_t index) const;
+    // operator[]: HAM bellek indeksi (contiguous olmayanlarda dikkatli!)
+    float& operator[](size_t rawIndex);
+    const float& operator[](size_t rawIndex) const;
 
+    // At(): MANTIKSAL indeks (her zaman güvenli)
     float& At(const Shape& indices);
     const float& At(const Shape& indices) const;
 
 public:
 
-    // Deep copy: yeni ayrı veri bloğu
+    // Deep copy: yeni ayrı veri bloğu, her zaman Contiguous
     Tensor Clone() const;
 
-    // View: aynı veriyi paylaş, son iki ekseni değiştir
+    // View: aynı veriyi paylaş, son iki ekseni yer değiştir
+    // Sonuç: Contiguous OLMAYABILIR
     Tensor Transpose() const;
 
 public:
 
+    // Aritmetik işlemler
+    // Eğer her iki taraf da Contiguous ise HIZLI yol kullanılır
     Tensor operator+(const Tensor& other) const;
     Tensor operator-(const Tensor& other) const;
     Tensor operator*(const Tensor& other) const;
@@ -86,6 +93,7 @@ public:
     Tensor operator*(float scalar) const;
     Tensor operator/(float scalar) const;
 
+    // In-place işlemler
     Tensor& operator+=(const Tensor& other);
     Tensor& operator-=(const Tensor& other);
     Tensor& operator*=(float scalar);
@@ -96,23 +104,12 @@ public:
 
 private:
 
-    size_t ComputeOffset(
-        const Shape& indices) const;
+    // Bu nesnenin stride'ı ile offset hesapla
+    size_t ComputeOffset(const Shape& indices) const;
 
-    static size_t ComputeElementCount(
-        const Shape& shape);
-
-    static Strides ComputeContiguousStrides(
-        const Shape& shape);
-
-    static size_t ComputeOffsetWithStrides(
-        const Shape& indices,
-        const Shape& shape,
-        const Strides& strides);
-
-    static Shape OffsetToIndices(
-        size_t offset,
-        const Shape& shape);
+    // Yardımcı statik fonksiyonlar
+    static size_t ComputeElementCount(const Shape& shape);
+    static Strides ComputeContiguousStrides(const Shape& shape);
 
 private:
 
