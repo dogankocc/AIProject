@@ -391,6 +391,53 @@ Tensor Tensor::Permute(
         m_offset);
 }
 
+Tensor Tensor::View(const Shape& shape) const
+{
+    if (!IsContiguous())
+    {
+        throw std::runtime_error(
+            "View is only valid on contiguous tensors.");
+    }
+
+    if (ComputeElementCount(shape) != Size())
+    {
+        throw std::invalid_argument(
+            "Element count mismatch.");
+    }
+
+    return Tensor(
+        shape,
+        ComputeContiguousStrides(shape),
+        m_data,
+        m_offset);
+}
+
+Tensor Tensor::Flatten() const
+{
+    return View({ Size() });
+}
+
+Tensor Tensor::Squeeze() const
+{
+    Shape newShape;
+    Strides newStrides;
+
+    for (size_t i = 0; i < m_shape.size(); ++i)
+    {
+        if (m_shape[i] != 1)
+        {
+            newShape.push_back(m_shape[i]);
+            newStrides.push_back(m_strides[i]);
+        }
+    }
+
+    return Tensor(
+        newShape,
+        newStrides,
+        m_data,
+        m_offset);
+}
+
 // Hızlı yol kontrolü: İki tensor da hem Contiguous hem aynı shape
 static bool AreBothContiguousAndSameShape(const Tensor& a, const Tensor& b)
 {
