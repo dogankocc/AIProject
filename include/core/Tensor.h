@@ -82,6 +82,11 @@ public:
     // View: aynı veriyi paylaş, son iki ekseni yer değiştir
     // Sonuç: Contiguous OLMAYABILIR
     Tensor Transpose() const;
+    
+    // İstenilen iki ekseni değiştir
+    Tensor Transpose(
+        size_t dim1,
+        size_t dim2) const;
 
     Tensor Slice(size_t dim, size_t index) const;
 public:

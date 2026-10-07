@@ -260,6 +260,42 @@ Tensor Tensor::Clone() const
     return result;
 }
 
+Tensor Tensor::Transpose(
+    size_t dim1,
+    size_t dim2) const
+{
+    if (!m_data)
+    {
+        return *this;
+    }
+
+    if (dim1 >= m_shape.size() ||
+        dim2 >= m_shape.size())
+    {
+        throw std::out_of_range(
+            "Transpose dimension out of range.");
+    }
+
+    if (dim1 == dim2)
+    {
+        return *this;
+    }
+
+    Shape newShape = m_shape;
+    std::swap(newShape[dim1],
+        newShape[dim2]);
+
+    Strides newStrides = m_strides;
+    std::swap(newStrides[dim1],
+        newStrides[dim2]);
+
+    return Tensor(
+        newShape,
+        newStrides,
+        m_data,
+        m_offset);
+}
+
 Tensor Tensor::Transpose() const
 {
     if (m_shape.size() < 2 || !m_data)
@@ -277,6 +313,7 @@ Tensor Tensor::Transpose() const
 	// Aynı veriyi paylaşan view oluştur, m_offset değişmez çünkü m_data değişmedi
     return Tensor(newShape, newStrides, m_data, m_offset);
 }
+
 Tensor Tensor::Slice(size_t dim, size_t index) const
 {
     if (!m_data)
