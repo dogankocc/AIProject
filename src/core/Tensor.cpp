@@ -261,7 +261,7 @@ Tensor Tensor::Transpose() const
         return *this;
     }
 
-    // Son iki ekseni yer değiştir
+    //Transpose kuralı: Son iki ekseni yer değiştir xT[i][j] = x[j][i]
     Shape newShape = m_shape;
     std::swap(newShape[newShape.size() - 1], newShape[newShape.size() - 2]);
 
