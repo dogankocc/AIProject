@@ -347,6 +347,50 @@ Tensor Tensor::Slice(size_t dim, size_t index) const
         m_data,
         newOffset);
 }
+
+Tensor Tensor::Permute(
+    const std::vector<size_t>& dims) const
+{
+    if (dims.size() != m_shape.size())
+    {
+        throw std::invalid_argument(
+            "Permutation rank mismatch.");
+    }
+
+    Shape newShape(dims.size());
+    Strides newStrides(dims.size());
+
+    std::vector<bool> used(dims.size(), false);
+
+    for (size_t i = 0; i < dims.size(); ++i)
+    {
+        size_t dim = dims[i];
+
+        if (dim >= m_shape.size())
+        {
+            throw std::out_of_range(
+                "Invalid dimension.");
+        }
+
+        if (used[dim])
+        {
+            throw std::invalid_argument(
+                "Duplicate dimension.");
+        }
+
+        used[dim] = true;
+
+        newShape[i] = m_shape[dim];
+        newStrides[i] = m_strides[dim];
+    }
+
+    return Tensor(
+        newShape,
+        newStrides,
+        m_data,
+        m_offset);
+}
+
 // Hızlı yol kontrolü: İki tensor da hem Contiguous hem aynı shape
 static bool AreBothContiguousAndSameShape(const Tensor& a, const Tensor& b)
 {

@@ -89,6 +89,13 @@ public:
         size_t dim2) const;
 
     Tensor Slice(size_t dim, size_t index) const;
+
+	// Yeni tensorun boyutları hangi sırayla oluşturulacaksa, o sırayla eksenleri,
+    // shape ve stride'ları yeniden düzenleyen view oluşturur.
+	// Örnek: shape={2,3,4}, Permute({2,0,1}) -> dims[0] = oldDims[2] = 4, dims[1] = oldDims[0] = 2, dims[2] = oldDims[1] = 3, shape = {4,2,3}, strides buna göre yeniden hesaplanır.
+    // dims[i], yeni i. eksenin hangi eski eksenden geleceğini belirtir.
+    Tensor Permute(
+        const std::vector<size_t>& dims) const;
 public:
 
     // Aritmetik işlemler
