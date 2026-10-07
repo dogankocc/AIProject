@@ -11,14 +11,16 @@ Tensor::Tensor()
 Tensor::Tensor(const Shape& shape)
     : m_shape(shape),
     m_strides(ComputeContiguousStrides(shape)),
-    m_data(std::make_shared<std::vector<float>>(ComputeElementCount(shape)))
+    m_data(std::make_shared<std::vector<float>>(ComputeElementCount(shape))),
+    m_offset(0)
 {
 }
 
 Tensor::Tensor(const Shape& shape, float initialValue)
     : m_shape(shape),
     m_strides(ComputeContiguousStrides(shape)),
-    m_data(std::make_shared<std::vector<float>>(ComputeElementCount(shape), initialValue))
+    m_data(std::make_shared<std::vector<float>>(ComputeElementCount(shape), initialValue)),
+	m_offset(0)
 {
 }
 
@@ -27,7 +29,8 @@ Tensor::Tensor(
     const std::vector<float>& data)
     : m_shape(shape),
     m_strides(ComputeContiguousStrides(shape)),
-    m_data(std::make_shared<std::vector<float>>(data))
+    m_data(std::make_shared<std::vector<float>>(data)),
+	m_offset(0)
 {
     const size_t expectedSize = ComputeElementCount(shape);
 
