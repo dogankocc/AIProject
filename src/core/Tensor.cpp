@@ -41,10 +41,12 @@ Tensor::Tensor(
 Tensor::Tensor(
     const Shape& shape,
     const Strides& strides,
-    const DataPtr& data)
+    const DataPtr& data,
+    size_t offset)
     : m_shape(shape),
     m_strides(strides),
-    m_data(data)
+    m_data(data),
+    m_offset(offset)
 {
 }
 
@@ -147,12 +149,13 @@ void Tensor::Fill(float value)
     }
     else
     {
+        // i'yi mantıksal indekslere dönüştürmek için
+        // Contiguous strideler kullan (i: 0,1,2,... mantıksal sıra)
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
         // View: mantıksal erişim
         for (size_t i = 0; i < Size(); ++i)
         {
-            // i'yi mantıksal indekslere dönüştürmek için
-            // Contiguous strideler kullan (i: 0,1,2,... mantıksal sıra)
-            Strides contigStrides = ComputeContiguousStrides(m_shape);
             Shape indices(m_shape.size());
             size_t remaining = i;
 
@@ -268,10 +271,42 @@ Tensor Tensor::Transpose() const
     Strides newStrides = m_strides;
     std::swap(newStrides[newStrides.size() - 1], newStrides[newStrides.size() - 2]);
 
-    // Aynı veriyi paylaşan view oluştur
-    return Tensor(newShape, newStrides, m_data);
+	// Aynı veriyi paylaşan view oluştur, m_offset değişmez çünkü m_data değişmedi
+    return Tensor(newShape, newStrides, m_data, m_offset);
 }
+Tensor Tensor::Slice(size_t dim, size_t index) const
+{
+    if (!m_data)
+    {
+        throw std::runtime_error("Tensor has no data.");
+    }
 
+    if (dim >= m_shape.size())
+    {
+        throw std::out_of_range("Invalid dimension.");
+    }
+
+    if (index >= m_shape[dim])
+    {
+        throw std::out_of_range("Index out of range.");
+    }
+
+    Shape newShape = m_shape;
+    Strides newStrides = m_strides;
+
+    size_t newOffset =
+        m_offset +
+        index * m_strides[dim];
+
+    newShape.erase(newShape.begin() + dim);
+    newStrides.erase(newStrides.begin() + dim);
+
+    return Tensor(
+        newShape,
+        newStrides,
+        m_data,
+        newOffset);
+}
 // Hızlı yol kontrolü: İki tensor da hem Contiguous hem aynı shape
 static bool AreBothContiguousAndSameShape(const Tensor& a, const Tensor& b)
 {

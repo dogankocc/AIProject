@@ -31,7 +31,8 @@ public:
     Tensor(
         const Shape& shape,
         const Strides& strides,
-        const DataPtr& data);
+        const DataPtr& data,
+        size_t offset);
 
 public:
 
@@ -82,6 +83,7 @@ public:
     // Sonuç: Contiguous OLMAYABILIR
     Tensor Transpose() const;
 
+    Tensor Slice(size_t dim, size_t index) const;
 public:
 
     // Aritmetik işlemler
@@ -116,4 +118,5 @@ private:
     Shape m_shape;
     Strides m_strides;
     DataPtr m_data;
+    size_t m_offset;
 };
