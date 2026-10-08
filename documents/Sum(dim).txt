@@ -1,0 +1,167 @@
+resultIndices[d] =
+remaining / resultContig[d];
+
+şunu yapıyor:
+
+Düz (linear) indeksi tekrar çok boyutlu indekse çeviriyor.
+
+Mesela elimizde:
+
+resultShape = {3,4}
+ 
+olsun.
+
+Bunun contiguous stride'ı:
+
+resultContig = {4,1}
+
+olur.
+
+Şimdi:
+
+i = 6
+
+olsun.
+
+Biz aslında:
+
+6. eleman
+
+değil,
+
+hangi indeks?
+
+sorusunun cevabını arıyoruz.
+
+Hesap:
+
+remaining = 6;
+
+İlk boyut:
+
+resultIndices[0]
+=
+remaining / 4
+=
+6 / 4
+=
+1;
+
+Sonra:
+
+remaining %= 4;
+
+↓
+
+remaining = 2;
+
+İkinci boyut:
+
+resultIndices[1]
+=
+2 / 1
+=
+2;
+
+Sonuç:
+
+i = 6
+
+↓
+
+resultIndices = {1,2}
+
+Gerçekten de:
+
+shape={3,4}
+
+verilerin görünümü örnek:
+[
+ [10,20,30,40],
+ [50,60,70,80],
+ [90,100,110,120]
+]
+Bu görünümde: 10 değerinin indeksi: {0,0}, 20 değerinin indeksi: {0,1}, 70 değerinin indeksi:{1,2}
+
+indexlerinin görünümü örnek:
+[
+[0,0] [0,1] [0,2] [0,3]
+[1,0] [1,1] [1,2] [1,3]
+[2,0] [2,1] [2,2] [2,3]
+]
+
+sıralamasında:
+
+{1,2}
+elemandır (0'dan sayınca index 6).
+
+Yani şu satır:
+
+resultIndices[d] =
+remaining / resultContig[d];
+
+aslında:
+
+Linear index → Çok boyutlu index
+
+dönüşümünün ilk adımı.
+
+Bir örnek daha:
+
+shape = {2,3}
+stride = {3,1}
+
+olsun.
+
+i = 4
+
+İlk boyut:
+
+4 / 3
+=
+1
+
+↓
+
+indices[0] = 1
+
+Kalan:
+
+4 % 3
+=
+1
+
+İkinci boyut:
+
+1 / 1
+=
+1
+
+↓
+
+indices[1] = 1
+
+Sonuç:
+
+i = 4
+
+↓
+
+{1,1}
+
+Ve gerçekten:
+
+[
+[0,0] [0,1] [0,2]
+[1,0] [1,1] [1,2]
+]
+
+diziliminde
+
+{1,1}
+elemandır (linear index 4).
+
+Kısaca:
+
+resultIndices[d] =
+remaining / resultContig[d];

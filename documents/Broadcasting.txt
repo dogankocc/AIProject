@@ -1,0 +1,237 @@
+shape={3,4}
+stride={4,1}
+
+olan tensorun stride'ı broadcast sonrası {0,1} olur demedim.
+
+Ben şunu dedim:
+
+shape={4}
+stride={1}
+
+
+olan tensoru
+
+shape={3,4}
+
+gibi göstermek istersek stride:
+
+{0,1}
+
+olur.
+
+Yani stride'ı değişen tensor küçük olan tensor.
+
+Örneğe bakalım.
+
+A.shape = {3,4}
+A.stride = {4,1}
+
+[
+[1,2,3,4],
+[5,6,7,8],
+[9,10,11,12]
+]
+
+Ve:
+
+B.shape = {4}
+B.stride = {1}
+
+[
+10,20,30,40
+]
+
+
+olsun.
+
+Broadcast sırasında:
+
+A
+
+hiç değişmez.
+
+A.shape = {3,4}
+A.stride = {4,1}
+
+aynen kalır.
+
+Ama:
+
+B
+
+sanki:
+
+shape={3,4} imiş gibi davranmalıdır.
+
+Mantıksal görünüm:
+
+[
+[10,20,30,40],
+[10,20,30,40],
+[10,20,30,40]
+]
+
+Veriyi kopyalamak istemiyoruz.
+
+Bellek hala:
+
+[10,20,30,40]
+
+Bunun için yeni bir view oluştururuz:
+
+shape = {3,4}
+stride = {0,1}
+
+Şimdi bakalım:
+
+At({0,0})
+
+↓
+
+0*0 + 0*1 = 0
+
+↓
+
+
+10
+At({1,0})
+
+↓
+
+1*0 + 0*1 = 0
+
+↓
+
+
+10
+
+At({2,0})
+
+↓
+
+2*0 + 0*1 = 0
+
+↓
+
+
+10
+
+Gördün mü?
+
+İlk boyutta ilerliyoruz:
+
+
+0 → 1 → 2
+
+ama:
+
+stride[0] = 0
+
+olduğu için fiziksel bellek adresi değişmiyor.
+
+Hep:
+
+data[0]
+
+okuyoruz.
+
+Asıl kritik cümle şu:
+
+Broadcast edilen boyutun stride'ı 0 olur.
+
+Başka bir örnek:
+
+B.At({0,1})
+
+offset =
+    0 * strides[0]
+  + 1 * strides[1];
+  
+  Yerine koyarsak:
+  
+  offset =
+    0 * 0
+  + 1 * 1;
+
+offset = 1;
+
+Sonuç: data[1] = 20
+
+Şimdi karşılaştıralım:
+
+At({1,1})
+↓
+
+1 * 0
++
+1 * 1
+=
+1
+
+↓
+
+20
+
+Ve:
+
+At({2,1})
+
+↓
+
+2 * 0
++
+1 * 1
+ 
+=
+1
+
+↓
+
+20
+
+Gördüğün gibi:
+
+(0,1) -> 20
+(1,1) -> 20
+(2,1) -> 20
+
+çünkü:
+
+stride[0] = 0
+
+Bu yüzden ilk boyutta ne kadar ilerlersen ilerle fiziksel adres değişmiyor.
+
+Hatta tüm görünüm şöyle oluyor:
+
+At({0,0}) = 10
+At({0,1}) = 20
+At({0,2}) = 30
+At({0,3}) = 40
+ 
+At({1,0}) = 10
+At({1,1}) = 20
+At({1,2}) = 30
+At({1,3}) = 40
+ 
+At({2,0}) = 10
+At({2,1}) = 20
+At({2,2}) = 30
+At({2,3}) = 40
+
+Yani mantıksal olarak:
+
+[
+[10,20,30,40],
+[10,20,30,40],
+[10,20,30,40]
+]
+
+gibi davranıyor.
+
+Ama fiziksel bellekte hâlâ sadece:
+
+[10,20,30,40]
+
+İşte broadcasting'in sihri bu:
+
+Aynı fiziksel elemana birden fazla mantıksal indeks karşılık gelebiliyor çünkü bazı stride'lar 0 oluyor.
