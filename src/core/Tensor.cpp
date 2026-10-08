@@ -469,6 +469,99 @@ Tensor Tensor::Unsqueeze(size_t dim) const
         m_offset);
 }
 
+Tensor Tensor::BroadcastTo(
+    const Shape& targetShape) const
+{
+    // Hedef tensorun rank'ı kaynak tensorunkinden küçük olamaz.
+    // Örn:{3,4} -> {4}
+    if (targetShape.size() < m_shape.size())
+    {
+        throw std::invalid_argument(
+            "Target rank is smaller than source rank.");
+    }
+
+    Shape newShape = targetShape;
+
+    // Broadcast sonrası kullanılacak stride'lar
+    Strides newStrides(targetShape.size());
+
+    // Hedef shape daha büyükse, kaynak shape sağa hizalanır.
+    // Örn:
+    // source = {4}
+    // target = {3,4}
+    //
+    // source aslında:
+    // {1,4}
+    // gibi düşünülür.
+    size_t shapeOffset = targetShape.size() - m_shape.size();
+
+    for (size_t i = 0; i < targetShape.size(); ++i)
+    {
+        // Kaynak shape'de olmayan, sola eklenmiş boyutlar
+        // Örn:
+        // source = {4}
+        // target = {3,4}
+        // yeni eklenen ilk boyutun stride'ı 0 olur.
+        if (i < shapeOffset)
+        {
+            // Eklenen boyutlar
+            newStrides[i] = 0;
+            continue;
+        }
+
+        size_t srcDim = i - shapeOffset;
+
+        size_t srcSize = m_shape[srcDim];
+        size_t dstSize = targetShape[i];
+
+        // Boyutlar eşitse stride aynen korunur.
+        //
+        // Örn:
+        // source = {3,4}
+        // target = {3,4}
+        if (srcSize == dstSize)
+        {
+            newStrides[i] = m_strides[srcDim];
+        }
+        // Kaynak boyut 1 ise broadcast yapılabilir.
+        // Örn:
+        // source = {1,4}
+        // target = {3,4}
+        //
+        // İlk boyuttaki stride 0 yapılır.
+        // Böylece aynı değer satırlar boyunca tekrar edilmiş gibi görünür.
+        else if (srcSize == 1)
+        {
+            newStrides[i] = 0;
+        }
+        // Ne eşit ne de kaynak boyut 1 ise
+        // broadcasting mümkün değildir.
+        //
+        // Örn:
+        // {2,4} -> {3,4}
+        else
+        {
+            throw std::invalid_argument(
+                "Shapes are not broadcast compatible.");
+        }
+    }
+    // Veri kopyalama yok.
+    // Aynı data paylaşılır.
+    //
+    // Değişenler:
+    //   shape
+    //   stride
+    //
+    // Değişmeyenler:
+    //   data
+    //   offset
+    return Tensor(
+        newShape,
+        newStrides,
+        m_data,
+        m_offset);
+}
+
 // Hızlı yol kontrolü: İki tensor da hem Contiguous hem aynı shape
 static bool AreBothContiguousAndSameShape(const Tensor& a, const Tensor& b)
 {

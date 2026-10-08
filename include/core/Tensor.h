@@ -122,6 +122,9 @@ public:
 
     // Verilen eksen indeksine uzunluğu 1 olan yeni bir boyut ekleyen view 
     Tensor Unsqueeze(size_t dim) const;
+
+    // Tensor'u hedef shape'e broadcast eden view oluşturur.
+    Tensor BroadcastTo(const Shape& targetShape) const;
 public:
 
     // Aritmetik işlemler
