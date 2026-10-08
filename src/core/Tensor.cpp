@@ -438,6 +438,37 @@ Tensor Tensor::Squeeze() const
         m_offset);
 }
 
+Tensor Tensor::Unsqueeze(size_t dim) const
+{
+    if (dim > m_shape.size())
+    {
+        throw std::out_of_range(
+            "Invalid dimension.");
+    }
+
+    Shape newShape = m_shape;
+    Strides newStrides = m_strides;
+
+    newShape.insert(
+        newShape.begin() + dim,
+        1);
+
+    size_t newStride =
+        (dim < m_strides.size())
+        ? m_strides[dim]
+        : 1;
+
+    newStrides.insert(
+        newStrides.begin() + dim,
+        newStride);
+
+    return Tensor(
+        newShape,
+        newStrides,
+        m_data,
+        m_offset);
+}
+
 // Hızlı yol kontrolü: İki tensor da hem Contiguous hem aynı shape
 static bool AreBothContiguousAndSameShape(const Tensor& a, const Tensor& b)
 {

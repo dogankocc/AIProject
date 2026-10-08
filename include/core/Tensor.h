@@ -119,6 +119,9 @@ public:
 	// data ve offset aynı kalır, sadece shape ve strides değişir. Eğer boyutu 1 olan eksen yoksa, aynı tensor döner.
     // Aslında stride değişmiyor. Sadece shape'den sildiğimiz boyutlara karşılık gelen stride'ları da siliyoruz.
     Tensor Squeeze() const;
+
+    // Verilen eksen indeksine uzunluğu 1 olan yeni bir boyut ekleyen view 
+    Tensor Unsqueeze(size_t dim) const;
 public:
 
     // Aritmetik işlemler
