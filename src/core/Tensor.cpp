@@ -119,16 +119,14 @@ void Tensor::Reshape(const Shape& newShape)
 {
     if (!IsContiguous())
     {
-        throw std::runtime_error(
-            "Reshape is only valid on contiguous tensors. Use Clone() first.");
+        throw std::runtime_error("Reshape is only valid on contiguous tensors. Use Clone() first.");
     }
 
     const size_t newSize = ComputeElementCount(newShape);
 
     if (newSize != Size())
     {
-        throw std::invalid_argument(
-            "Reshape element count mismatch.");
+        throw std::invalid_argument("Reshape element count mismatch.");
     }
 
     m_shape = newShape;
@@ -562,6 +560,12 @@ Tensor Tensor::BroadcastTo(
         m_offset);
 }
 
+Tensor Tensor::Expand(
+    const Shape& shape) const
+{
+    return BroadcastTo(shape);
+}
+
 // Hızlı yol kontrolü: İki tensor da hem Contiguous hem aynı shape
 static bool AreBothContiguousAndSameShape(const Tensor& a, const Tensor& b)
 {
@@ -910,4 +914,96 @@ Tensor::Strides Tensor::ComputeContiguousStrides(const Shape& shape)
     }
 
     return strides;
+}
+
+float Tensor::Sum() const
+{
+    float result = 0.0f;
+
+    if (!m_data)
+    {
+        return result;
+    }
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result += (*this)[i];
+        }
+    }
+    else
+    {
+        Strides contigStrides =
+            ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+
+            size_t remaining = i;
+
+            for (size_t dim = 0;
+                dim < m_shape.size();
+                ++dim)
+            {
+                indices[dim] =
+                    remaining /
+                    contigStrides[dim];
+
+                remaining %=
+                    contigStrides[dim];
+            }
+
+            result += At(indices);
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Sum(size_t dim) const
+{
+    if (dim >= Rank())
+    {
+        throw std::out_of_range("Invalid dimension.");
+    }
+
+    Shape resultShape = m_shape;
+
+    resultShape.erase(resultShape.begin() + dim);
+
+    Tensor result(resultShape, 0.0f);
+
+    Strides resultContig = ComputeContiguousStrides(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        Shape resultIndices(resultShape.size());
+
+        size_t remaining = i;
+
+        //Linear index → Çok boyutlu index dönüşümü başlıyor
+        for (size_t d = 0; d < resultShape.size(); ++d)
+        {
+            resultIndices[d] = remaining / resultContig[d];
+
+            remaining %= resultContig[d];
+        }
+
+        float sum = 0.0f;
+
+        for (size_t k = 0; k < m_shape[dim]; ++k)
+        {
+            Shape srcIndices = resultIndices;
+
+            srcIndices.insert(srcIndices.begin() + dim, k);
+
+            sum += At(srcIndices);
+        }
+
+        result.At(resultIndices) = sum;
+    }
+
+    return result;
 }

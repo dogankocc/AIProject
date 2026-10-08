@@ -127,6 +127,24 @@ public:
     // tensoru veri kopyalamadan daha büyük bir shape'e yayınlayan (broadcast eden) view oluşturur.
     // Broadcasting = Shape değiştir + bazı stride'ları 0 yap
     Tensor BroadcastTo(const Shape& targetShape) const;
+
+    Tensor Expand(const Shape& shape) const;
+
+public:
+    // Tüm elemanların toplamını döndürür.
+    float Sum() const;
+
+    // Belirli bir ekseni topla ve o ekseni ortadan kaldır.
+    /**
+        Ör;
+        [
+         [1,2,3],
+         [4,5,6]
+        ]
+		Shape = {2,3} için Sum(0) = [5,7,9](Satır yönünde toplam) Shape = {3}
+        Sum(1) = [3,12](Sütun yönünde toplam) Shape = {2}
+    */
+    Tensor Sum(size_t dim) const;
 public:
 
     // Aritmetik işlemler
