@@ -123,7 +123,9 @@ public:
     // Verilen eksen indeksine uzunluğu 1 olan yeni bir boyut ekleyen view 
     Tensor Unsqueeze(size_t dim) const;
 
-    // Tensor'u hedef shape'e broadcast eden view oluşturur.
+    // Boyutu 1 olan eksenlerin stride'ını 0 yaparak,
+    // tensoru veri kopyalamadan daha büyük bir shape'e yayınlayan (broadcast eden) view oluşturur.
+    // Broadcasting = Shape değiştir + bazı stride'ları 0 yap
     Tensor BroadcastTo(const Shape& targetShape) const;
 public:
 
