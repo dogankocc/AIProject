@@ -130,6 +130,7 @@ public:
 
     Tensor Expand(const Shape& shape) const;
 
+    //Reduction
 public:
     // Tüm elemanların toplamını döndürür.
     float Sum() const;
@@ -145,6 +146,18 @@ public:
         Sum(1) = [3,12](Sütun yönünde toplam) Shape = {2}
     */
     Tensor Sum(size_t dim) const;
+
+    float Sum() const;
+    Tensor Sum(size_t dim) const;
+
+    float Mean() const;
+    Tensor Mean(size_t dim) const;
+
+    float Max() const;
+    Tensor Max(size_t dim) const;
+
+    float Min() const;
+    Tensor Min(size_t dim) const;
 public:
 
     // Aritmetik işlemler
@@ -160,7 +173,7 @@ public:
     Tensor& operator+=(const Tensor& other);
     Tensor& operator-=(const Tensor& other);
     Tensor& operator*=(float scalar);
-
+    Tensor& operator/=(float scalar);
 public:
 
     std::string ToString() const;

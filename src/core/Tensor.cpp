@@ -857,6 +857,39 @@ Tensor& Tensor::operator*=(float scalar)
     return *this;
 }
 
+Tensor& Tensor::operator/=(float scalar)
+{
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            (*this)[i] /= scalar;
+        }
+    }
+    else
+    {
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices(m_shape.size());
+
+            size_t remaining = i;
+
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
+            {
+                indices[dim] = remaining / contigStrides[dim];
+
+                remaining %= contigStrides[dim];
+            }
+
+            At(indices) /= scalar;
+        }
+    }
+
+    return *this;
+}
+
 std::string Tensor::ToString() const
 {
     std::stringstream ss;
@@ -1003,6 +1036,196 @@ Tensor Tensor::Sum(size_t dim) const
         }
 
         result.At(resultIndices) = sum;
+    }
+
+    return result;
+}
+
+float Tensor::Mean() const
+{
+    if (Size() == 0)
+    {
+        return 0.0f;
+    }
+
+    return Sum() / static_cast<float>(Size());
+}
+
+Tensor Tensor::Mean(size_t dim) const
+{
+    Tensor result = Sum(dim);
+
+    result /= static_cast<float>(m_shape[dim]);
+
+    return result;
+}
+
+float Tensor::Max() const
+{
+    if (!m_data || Size() == 0)
+    {
+        throw std::runtime_error(
+            "Tensor is empty.");
+    }
+
+    float result = At(Shape(Rank(), 0));
+
+    Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+    for (size_t i = 1; i < Size(); ++i)
+    {
+        Shape indices(m_shape.size());
+
+        size_t remaining = i;
+
+        for (size_t dim = 0; dim < m_shape.size(); ++dim)
+        {
+            indices[dim] = remaining / contigStrides[dim];
+
+            remaining %= contigStrides[dim];
+        }
+
+        result = std::max(result, At(indices));
+    }
+
+    return result;
+}
+
+Tensor Tensor::Max(size_t dim) const
+{
+    if (dim >= Rank())
+    {
+        throw std::out_of_range(
+            "Invalid dimension.");
+    }
+
+    Shape resultShape = m_shape;
+
+    resultShape.erase(
+        resultShape.begin() + dim);
+
+    Tensor result(resultShape);
+
+    Strides resultContig = ComputeContiguousStrides(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        Shape resultIndices(resultShape.size());
+
+        size_t remaining = i;
+
+        for (size_t d = 0;
+            d < resultShape.size();
+            ++d)
+        {
+            resultIndices[d] =
+                remaining /
+                resultContig[d];
+
+            remaining %=
+                resultContig[d];
+        }
+
+        Shape srcIndices =
+            resultIndices;
+
+        srcIndices.insert(srcIndices.begin() + dim, 0);
+
+        float maxValue = At(srcIndices);
+
+        for (size_t k = 1; k < m_shape[dim]; ++k)
+        {
+            srcIndices[dim] = k;
+
+            maxValue = std::max(maxValue, At(srcIndices));
+        }
+
+        result.At(resultIndices) = maxValue;
+    }
+
+    return result;
+}
+
+float Tensor::Min() const
+{
+    if (!m_data || Size() == 0)
+    {
+        throw std::runtime_error(
+            "Tensor is empty.");
+    }
+
+    float result = At(Shape(Rank(), 0));
+
+    Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+    for (size_t i = 1; i < Size(); ++i)
+    {
+        Shape indices(m_shape.size());
+
+        size_t remaining = i;
+
+        for (size_t dim = 0;
+            dim < m_shape.size();
+            ++dim)
+        {
+            indices[dim] = remaining / contigStrides[dim];
+
+            remaining %= contigStrides[dim];
+        }
+
+        result = std::min(result, At(indices));
+    }
+
+    return result;
+}
+
+Tensor Tensor::Min(size_t dim) const
+{
+    if (dim >= Rank())
+    {
+        throw std::out_of_range("Invalid dimension.");
+    }
+
+    Shape resultShape = m_shape;
+
+    resultShape.erase(resultShape.begin() + dim);
+
+    Tensor result(resultShape);
+
+    Strides resultContig = ComputeContiguousStrides(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        Shape resultIndices(resultShape.size());
+
+        size_t remaining = i;
+
+        for (size_t d = 0; d < resultShape.size(); ++d)
+        {
+            resultIndices[d] =
+                remaining /
+                resultContig[d];
+
+            remaining %=
+                resultContig[d];
+        }
+
+        Shape srcIndices = resultIndices;
+
+        srcIndices.insert(srcIndices.begin() + dim, 0);
+
+        float minValue = At(srcIndices);
+
+        for (size_t k = 1;
+            k < m_shape[dim];
+            ++k)
+        {
+            srcIndices[dim] = k;
+
+            minValue = std::min(minValue, At(srcIndices));
+        }
+
+        result.At(resultIndices) = minValue;
     }
 
     return result;
