@@ -91,7 +91,7 @@ size_t Tensor::Size() const
     return ComputeElementCount(m_shape);
 }
 
-size_t Tensor::RawSize() const
+size_t Tensor::StorageSize() const
 {
     if (!m_data)
     {
@@ -179,12 +179,34 @@ void Tensor::Zero()
 // operator[]: HAM bellek indeksi
 float& Tensor::operator[](size_t rawIndex)
 {
-    return (*m_data)[rawIndex];
+    if (!IsContiguous())
+    {
+        throw std::runtime_error(
+            "operator[] only valid on contiguous tensors.");
+    }
+    if (rawIndex >= Size())
+    {
+        throw std::out_of_range(
+            "Raw index out of range.");
+    }
+
+    return (*m_data)[m_offset + rawIndex];
 }
 
 const float& Tensor::operator[](size_t rawIndex) const
 {
-    return (*m_data)[rawIndex];
+    if (!IsContiguous())
+    {
+        throw std::runtime_error(
+            "operator[] only valid on contiguous tensors.");
+    }
+    if (rawIndex >= Size())
+    {
+        throw std::out_of_range(
+            "Raw index out of range.");
+    }
+
+    return (*m_data)[m_offset + rawIndex];
 }
 
 // At(): MANTIKSAL indeks (her zaman güvenli)
@@ -724,6 +746,11 @@ Tensor Tensor::operator*(float scalar) const
 
 Tensor Tensor::operator/(float scalar) const
 {
+    if (scalar == 0.0f)
+    {
+        throw std::runtime_error(
+            "Division by zero.");
+    }
     Tensor result(m_shape);
 
     if (IsContiguous())
@@ -860,6 +887,11 @@ Tensor& Tensor::operator*=(float scalar)
 
 Tensor& Tensor::operator/=(float scalar)
 {
+    if (scalar == 0.0f)
+    {
+        throw std::runtime_error(
+            "Division by zero.");
+    }
     if (IsContiguous())
     {
         for (size_t i = 0; i < Size(); ++i)

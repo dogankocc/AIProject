@@ -46,7 +46,7 @@ public:
 
     size_t Rank() const;
     size_t Size() const;           // Mantıksal eleman sayısı
-    size_t RawSize() const;        // Ham bellekteki toplam eleman
+    size_t StorageSize() const;    // Ham bellekteki toplam eleman
 
     // Paylaşım durumunu kontrol eder, Bu belleği sadece ben mi kullanıyorum
     bool IsUnique() const;
