@@ -48,11 +48,17 @@ public:
     size_t Size() const;           // Mantıksal eleman sayısı
     size_t RawSize() const;        // Ham bellekteki toplam eleman
 
-    // Paylaşım durumu
+    // Paylaşım durumunu kontrol eder, Bu belleği sadece ben mi kullanıyorum
     bool IsUnique() const;
     long UseCount() const;
 
-    // Contiguous kontrolü: m_strides standart mı?
+    // Bu tensor bellekte normal sıralı şekilde mi duruyor
+    /* Ör;
+		Tensor x({2,3}); için Shape ={2,3}, Strides={3,1} olur. Bu contiguous'tur.
+		Tensor y = x.Transpose(); için Shape={3,2}, Strides={1,3} olur. 
+        Aslında beklenen contiguous stride: {2,1} dir.
+		Ama elimizde {1,3} var, dolayısıyla y.IsContiguous() -> false olur.
+    */
     bool IsContiguous() const;
 
 public:

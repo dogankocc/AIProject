@@ -876,6 +876,7 @@ Tensor& Tensor::operator/=(float scalar)
 
             size_t remaining = i;
 
+            //Mantıksal görünüm shape üzerinde i. index de hangi eleman var onu buluyoruz 
             for (size_t dim = 0; dim < m_shape.size(); ++dim)
             {
                 indices[dim] = remaining / contigStrides[dim];
