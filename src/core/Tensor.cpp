@@ -59,7 +59,7 @@ float* Tensor::Data()
     {
         return nullptr;
     }
-    return m_data->data();
+    return m_data->data() + m_offset;
 }
 
 const float* Tensor::Data() const
@@ -68,7 +68,7 @@ const float* Tensor::Data() const
     {
         return nullptr;
     }
-    return m_data->data();
+    return m_data->data() + m_offset;
 }
 
 const Tensor::Shape& Tensor::GetShape() const
@@ -145,7 +145,7 @@ void Tensor::Fill(float value)
         // Hızlı yol: doğrudan ham veri üzerinde
         for (size_t i = 0; i < Size(); ++i)
         {
-            (*m_data)[i] = value;
+            (*m_data)[m_offset + i] = value;
         }
     }
     else
@@ -205,7 +205,7 @@ size_t Tensor::ComputeOffset(const Shape& indices) const
         throw std::invalid_argument("Index rank mismatch.");
     }
 
-    size_t offset = 0;
+    size_t offset = m_offset;
 
     for (size_t i = 0; i < indices.size(); ++i)
     {
@@ -213,6 +213,7 @@ size_t Tensor::ComputeOffset(const Shape& indices) const
         {
             throw std::out_of_range("Index out of range.");
         }
+
         offset += indices[i] * m_strides[i];
     }
 
