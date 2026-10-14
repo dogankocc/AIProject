@@ -910,11 +910,21 @@ Tensor& Tensor::operator/=(float scalar)
             size_t remaining = i;
 
             //Mantıksal görünüm shape üzerinde i. index de hangi eleman var onu buluyoruz 
+            //i = "Tensor'un kaçıncı elemanı?" indices = "Bu eleman shape içinde hangi koordinatta?"
+			//Örneğin: Shape = {2,3} için Stride = { 3,1 } olur. i=4 için indices = {1,1} olur. Yani 2. satır 2. sütun.
+            /* Mantıksal görünüm:(2 satır 3 sütun)
+                i=0 -> {0,0}
+                i=1 -> {0,1}
+                i=2 -> {0,2}
+                i=3 -> {1,0}
+                i=4 -> {1,1}
+                i=5 -> {1,2}
+            */
             for (size_t dim = 0; dim < m_shape.size(); ++dim)
             {
-                indices[dim] = remaining / contigStrides[dim];
+                indices[dim] = remaining / contigStrides[dim];//Bu eksende kaç adım ilerlediğimizi buluyor.
 
-                remaining %= contigStrides[dim];
+                remaining %= contigStrides[dim];//Bu eksenin hesabını yaptıktan sonra alt eksenlere kalan kısmı bırakıyor.
             }
 
             At(indices) /= scalar;
