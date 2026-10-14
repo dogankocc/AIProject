@@ -164,6 +164,13 @@ public:
 
     float Min() const;
     Tensor Min(size_t dim) const;
+
+    //Tensor içindeki en büyük elemanın mantıksal indexini döndürür.
+    size_t ArgMax() const;
+    Tensor ArgMax(size_t dim) const;
+
+    size_t ArgMin() const;
+    Tensor ArgMin(size_t dim) const;
 public:
 
     // Aritmetik işlemler
@@ -192,6 +199,8 @@ private:
     // Yardımcı statik fonksiyonlar
     static size_t ComputeElementCount(const Shape& shape);
     static Strides ComputeContiguousStrides(const Shape& shape);
+
+	Shape LinearIndexToIndices();
 
 private:
 	// Tensorun görünüşü Ör.{2,3,4} demek 3boyutlu bir array, 0. boyut 2 elemanlı, 1. boyut 3 elemanlı, 2. boyut 4 elemanlı demektir 

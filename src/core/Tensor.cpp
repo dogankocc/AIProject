@@ -133,6 +133,40 @@ void Tensor::Reshape(const Shape& newShape)
     m_strides = ComputeContiguousStrides(newShape);
 }
 
+Tensor::Shape Tensor::LinearIndexToIndices() 
+{
+    Strides contigStrides = ComputeContiguousStrides(m_shape);
+    Shape indices(m_shape.size());
+
+    for (size_t i = 0; i < Size(); ++i)
+    {
+        size_t remaining = i;
+
+        //Mantıksal görünüm shape üzerinde i. index de hangi eleman var onu buluyoruz 
+        //i = "Tensor'un kaçıncı elemanı?" indices = "Bu eleman shape içinde hangi koordinatta?"
+        //Örneğin: Shape = {2,3} için Stride = { 3,1 } olur. i=4 için indices = {1,1} olur. Yani 2. satır 2. sütun.
+        /* Mantıksal görünüm:(2 satır 3 sütun)
+            i=0 -> {0,0}
+            i=1 -> {0,1}
+            i=2 -> {0,2}
+            i=3 -> {1,0}
+            i=4 -> {1,1}
+            i=5 -> {1,2}
+
+            Linear Index
+                  ↓
+            Multi Dimensional Index
+        */
+        for (size_t dim = 0; dim < m_shape.size(); ++dim)
+        {
+            indices[dim] = remaining / contigStrides[dim];//Bu eksende kaç adım ilerlediğimizi buluyor.
+
+            remaining %= contigStrides[dim];//Bu eksenin hesabını yaptıktan sonra alt eksenlere kalan kısmı bırakıyor.
+        }
+    }
+    return indices;
+}
+
 void Tensor::Fill(float value)
 {
     if (!m_data)
@@ -281,9 +315,7 @@ Tensor Tensor::Clone() const
     return result;
 }
 
-Tensor Tensor::Transpose(
-    size_t dim1,
-    size_t dim2) const
+Tensor Tensor::Transpose(size_t dim1, size_t dim2) const
 {
     if (!m_data)
     {
@@ -369,8 +401,7 @@ Tensor Tensor::Slice(size_t dim, size_t index) const
         newOffset);
 }
 
-Tensor Tensor::Permute(
-    const std::vector<size_t>& dims) const
+Tensor Tensor::Permute(const std::vector<size_t>& dims) const
 {
     if (dims.size() != m_shape.size())
     {
@@ -490,8 +521,7 @@ Tensor Tensor::Unsqueeze(size_t dim) const
         m_offset);
 }
 
-Tensor Tensor::BroadcastTo(
-    const Shape& targetShape) const
+Tensor Tensor::BroadcastTo(const Shape& targetShape) const
 {
     // Hedef tensorun rank'ı kaynak tensorunkinden küçük olamaz.
     // Örn:{3,4} -> {4}
@@ -583,8 +613,7 @@ Tensor Tensor::BroadcastTo(
         m_offset);
 }
 
-Tensor Tensor::Expand(
-    const Shape& shape) const
+Tensor Tensor::Expand(const Shape& shape) const
 {
     return BroadcastTo(shape);
 }
@@ -889,8 +918,7 @@ Tensor& Tensor::operator/=(float scalar)
 {
     if (scalar == 0.0f)
     {
-        throw std::runtime_error(
-            "Division by zero.");
+        throw std::runtime_error("Division by zero.");
     }
     if (IsContiguous())
     {
@@ -919,6 +947,10 @@ Tensor& Tensor::operator/=(float scalar)
                 i=3 -> {1,0}
                 i=4 -> {1,1}
                 i=5 -> {1,2}
+
+                Linear Index
+                      ↓
+                Multi Dimensional Index
             */
             for (size_t dim = 0; dim < m_shape.size(); ++dim)
             {
@@ -1011,8 +1043,7 @@ float Tensor::Sum() const
     }
     else
     {
-        Strides contigStrides =
-            ComputeContiguousStrides(m_shape);
+        Strides contigStrides = ComputeContiguousStrides(m_shape);
 
         for (size_t i = 0; i < Size(); ++i)
         {
@@ -1020,16 +1051,11 @@ float Tensor::Sum() const
 
             size_t remaining = i;
 
-            for (size_t dim = 0;
-                dim < m_shape.size();
-                ++dim)
+            for (size_t dim = 0; dim < m_shape.size(); ++dim)
             {
-                indices[dim] =
-                    remaining /
-                    contigStrides[dim];
+                indices[dim] = remaining / contigStrides[dim];
 
-                remaining %=
-                    contigStrides[dim];
+                remaining %= contigStrides[dim];
             }
 
             result += At(indices);
@@ -1270,6 +1296,192 @@ Tensor Tensor::Min(size_t dim) const
         }
 
         result.At(resultIndices) = minValue;
+    }
+
+    return result;
+}
+
+size_t Tensor::ArgMax() const
+{
+    if (!m_data || Size() == 0)
+    {
+        throw std::runtime_error(
+            "Tensor is empty.");
+    }
+
+    float maxValue = At(Shape(Rank(), 0));
+    size_t maxIndex = 0;
+
+    Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+    for (size_t i = 1; i < Size(); ++i)
+    {
+        Shape indices(m_shape.size());
+
+        size_t remaining = i;
+
+        for (size_t dim = 0; dim < m_shape.size(); ++dim)
+        {
+            indices[dim] = remaining / contigStrides[dim];
+
+            remaining %= contigStrides[dim];
+        }
+
+        float value = At(indices);
+
+        if (value > maxValue)
+        {
+            maxValue = value;
+            maxIndex = i;
+        }
+    }
+
+    return maxIndex;
+}
+
+size_t Tensor::ArgMin() const
+{
+    if (!m_data || Size() == 0)
+    {
+        throw std::runtime_error(
+            "Tensor is empty.");
+    }
+
+    float minValue = At(Shape(Rank(), 0));
+    size_t minIndex = 0;
+
+    Strides contigStrides = ComputeContiguousStrides(m_shape);
+
+    for (size_t i = 1; i < Size(); ++i)
+    {
+        Shape indices(m_shape.size());
+
+        size_t remaining = i;
+
+        for (size_t dim = 0; dim < m_shape.size(); ++dim)
+        {
+            indices[dim] = remaining / contigStrides[dim];
+
+            remaining %= contigStrides[dim];
+        }
+
+        float value = At(indices);
+
+        if (value < minValue)
+        {
+            minValue = value;
+            minIndex = i;
+        }
+    }
+
+    return minIndex;
+}
+
+Tensor Tensor::ArgMax(size_t dim) const
+{
+    if (dim >= Rank())
+    {
+        throw std::out_of_range("Invalid dimension.");
+    }
+
+    Shape resultShape = m_shape;
+
+    resultShape.erase(resultShape.begin() + dim);
+
+    Tensor result(resultShape);
+
+    Strides resultContig = ComputeContiguousStrides(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        Shape resultIndices(resultShape.size());
+
+        size_t remaining = i;
+
+        for (size_t d = 0; d < resultShape.size(); ++d)
+        {
+            resultIndices[d] = remaining / resultContig[d];
+
+            remaining %= resultContig[d];
+        }
+
+        Shape srcIndices = resultIndices;
+
+        srcIndices.insert(srcIndices.begin() + dim, 0);
+
+        float maxValue = At(srcIndices);
+
+        size_t maxIndex = 0;
+
+        for (size_t k = 1; k < m_shape[dim]; ++k)
+        {
+            srcIndices[dim] = k;
+
+            float value = At(srcIndices);
+
+            if (value > maxValue)
+            {
+                maxValue = value;
+                maxIndex = k;
+            }
+        }
+
+        result.At(resultIndices) = static_cast<float>(maxIndex);
+    }
+
+    return result;
+}
+
+Tensor Tensor::ArgMin(size_t dim) const
+{
+    if (dim >= Rank())
+    {
+        throw std::out_of_range("Invalid dimension.");
+    }
+
+    Shape resultShape = m_shape;
+
+    resultShape.erase(resultShape.begin() + dim);
+
+    Tensor result(resultShape);
+
+    Strides resultContig = ComputeContiguousStrides(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        Shape resultIndices(resultShape.size());
+
+        size_t remaining = i;
+
+        for (size_t d = 0; d < resultShape.size(); ++d)
+        {
+            resultIndices[d] = remaining / resultContig[d];
+
+            remaining %= resultContig[d];
+        }
+
+        Shape srcIndices = resultIndices;
+
+        srcIndices.insert(srcIndices.begin() + dim, 0);
+
+        float minValue = At(srcIndices);
+
+        size_t minIndex = 0;
+
+        for (size_t k = 1; k < m_shape[dim]; ++k)
+        {
+            srcIndices[dim] = k;
+
+            float value = At(srcIndices);
+
+            if (value < minValue)
+            {
+                minValue = value;
+                minIndex = k;
+            }
+        }
+
+        result.At(resultIndices) = static_cast<float>(minIndex);
     }
 
     return result;
