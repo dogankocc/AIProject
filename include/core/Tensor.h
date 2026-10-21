@@ -172,6 +172,8 @@ public:
 
     size_t ArgMin() const;
     Tensor ArgMin(size_t dim) const;
+
+    Tensor MatMul(const Tensor& other) const;
 public:
 
     // Aritmetik işlemler

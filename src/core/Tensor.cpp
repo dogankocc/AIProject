@@ -1135,9 +1135,7 @@ Tensor Tensor::Min(size_t dim) const
 
         float minValue = At(srcIndices);
 
-        for (size_t k = 1;
-            k < m_shape[dim];
-            ++k)
+        for (size_t k = 1; k < m_shape[dim]; ++k)
         {
             srcIndices[dim] = k;
 
@@ -1154,8 +1152,7 @@ size_t Tensor::ArgMax() const
 {
     if (!m_data || Size() == 0)
     {
-        throw std::runtime_error(
-            "Tensor is empty.");
+        throw std::runtime_error("Tensor is empty.");
     }
 
     float maxValue = At(Shape(Rank(), 0));
@@ -1181,8 +1178,7 @@ size_t Tensor::ArgMin() const
 {
     if (!m_data || Size() == 0)
     {
-        throw std::runtime_error(
-            "Tensor is empty.");
+        throw std::runtime_error("Tensor is empty.");
     }
 
     float minValue = At(Shape(Rank(), 0));
@@ -1289,6 +1285,45 @@ Tensor Tensor::ArgMin(size_t dim) const
         }
 
         result.At(resultIndices) = static_cast<float>(minIndex);
+    }
+
+    return result;
+}
+
+Tensor Tensor::MatMul(const Tensor& other) const
+{
+    if (Rank() != 2 || other.Rank() != 2)
+    {
+        throw std::invalid_argument("MatMul supports only 2D tensors.");
+    }
+
+    size_t M = m_shape[0];
+    size_t K = m_shape[1];
+
+    size_t K2 = other.m_shape[0];
+    size_t N = other.m_shape[1];
+
+    if (K != K2)
+    {
+        throw std::invalid_argument("MatMul dimension mismatch.");
+    }
+
+    Tensor result({ M, N }, 0.0f);
+
+	// Birincinin satırları ile ikincinin sütunları çarpılır ve toplanır. Yani A[i][k] * B[k][j] = C[i][j]
+    for (size_t m = 0; m < M; ++m)
+    {
+        for (size_t n = 0; n < N; ++n)
+        {
+            float sum = 0.0f;
+
+            for (size_t k = 0; k < K; ++k)
+            {
+                sum += At({ m, k }) * other.At({ k, n });
+            }
+
+            result.At({ m, n }) = sum;
+        }
     }
 
     return result;
