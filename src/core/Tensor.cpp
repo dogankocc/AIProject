@@ -138,7 +138,7 @@ Tensor::Shape Tensor::LinearIndexToIndices()
     Strides contigStrides = ComputeContiguousStrides(m_shape);
     Shape indices(m_shape.size());
 
-    for (size_t i = 0; i < Size(); ++i)
+    for (size_t i = 0; i < Tensor::Size(); ++i)
     {
         size_t remaining = i;
 

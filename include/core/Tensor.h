@@ -153,9 +153,6 @@ public:
     */
     Tensor Sum(size_t dim) const;
 
-    float Sum() const;
-    Tensor Sum(size_t dim) const;
-
     float Mean() const;
     Tensor Mean(size_t dim) const;
 
@@ -187,6 +184,9 @@ public:
     Tensor& operator-=(const Tensor& other);
     Tensor& operator*=(float scalar);
     Tensor& operator/=(float scalar);
+
+    Shape LinearIndexToIndices();
+
 public:
 
     std::string ToString() const;
@@ -200,7 +200,6 @@ private:
     static size_t ComputeElementCount(const Shape& shape);
     static Strides ComputeContiguousStrides(const Shape& shape);
 
-	Shape LinearIndexToIndices();
 
 private:
 	// Tensorun görünüşü Ör.{2,3,4} demek 3boyutlu bir array, 0. boyut 2 elemanlı, 1. boyut 3 elemanlı, 2. boyut 4 elemanlı demektir 

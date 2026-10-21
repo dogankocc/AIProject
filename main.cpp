@@ -32,7 +32,7 @@ void Print2DLogical(const Tensor& t, const std::string& name)
 void PrintRawMemory(const Tensor& t, const std::string& name)
 {
     std::cout << name << " HAM bellek (operator[] ile): ";
-    for (size_t i = 0; i < t.RawSize(); ++i)
+    for (size_t i = 0; i < t.StorageSize(); ++i)
     {
         std::cout << t[i] << " ";
     }
