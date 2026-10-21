@@ -190,6 +190,7 @@ public:
     Tensor& operator/=(float scalar);
 
     Shape LinearToIndices(size_t linearIndex) const;
+    Shape LinearToIndices(size_t linearIndex, const Shape& shape) const;
 
 public:
 

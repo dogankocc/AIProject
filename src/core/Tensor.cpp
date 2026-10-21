@@ -138,6 +138,9 @@ Tensor::Shape Tensor::LinearToIndices(size_t linearIndex) const
 {
     Shape indices(m_shape.size());
 
+    // i'yi mantıksal indekslere dönüştürmek için
+    // Contiguous strideler kullan (i: 0,1,2,... mantıksal sıra)
+    // View: mantıksal sırayla kopyala
     auto contigStrides = ComputeContiguousStrides(m_shape);
 
     size_t remaining = linearIndex;
@@ -167,6 +170,24 @@ Tensor::Shape Tensor::LinearToIndices(size_t linearIndex) const
     return indices;
 }
 
+Tensor::Shape Tensor::LinearToIndices(size_t linearIndex, const Shape& shape) const
+{
+    Shape indices(shape.size());
+
+    Strides contigStrides = ComputeContiguousStrides(shape);
+
+    size_t remaining = linearIndex;
+
+    for (size_t dim = 0; dim < shape.size(); ++dim)
+    {
+        indices[dim] = remaining / contigStrides[dim];
+
+        remaining %= contigStrides[dim];
+    }
+
+    return indices;
+}
+
 void Tensor::Fill(float value)
 {
     if (!m_data)
@@ -184,21 +205,9 @@ void Tensor::Fill(float value)
     }
     else
     {
-        // i'yi mantıksal indekslere dönüştürmek için
-        // Contiguous strideler kullan (i: 0,1,2,... mantıksal sıra)
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
-        // View: mantıksal erişim
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
+			Shape indices = LinearToIndices(i);
 
             At(indices) = value;
         }
@@ -276,31 +285,43 @@ size_t Tensor::ComputeOffset(const Shape& indices) const
     return offset;
 }
 
-Tensor Tensor::Clone(CloneMode mode = CloneMode::Logical) const
+Tensor Tensor::Clone(CloneMode mode) const
 {
     if (!m_data)
     {
         return Tensor();
     }
 
-    // Sonuç her zaman Contiguous olur
+    if (mode == CloneMode::Storage)
+    {
+        return Tensor(
+            m_shape,
+            m_strides,
+            std::make_shared<std::vector<float>>(*m_data),
+            m_offset);
+    }
+
+    if (mode == CloneMode::Logical &&
+        IsContiguous() &&
+        m_offset == 0)
+    {
+        Tensor result(m_shape);
+
+        std::copy(
+            m_data->begin(),
+            m_data->begin() + Size(),
+            result.m_data->begin());
+
+        return result;
+    }
+
+    // CloneMode::Logical
+
     Tensor result(m_shape);
 
-    if (mode == CloneMode::Logical)
+    for (size_t i = 0; i < Size(); ++i)
     {
-        // View: mantıksal sırayla kopyala
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
-        for (size_t i = 0; i < Size(); ++i)
-        {
-            // i → mantıksal indeksler (contiguous mantıkta)
-            result[i] = At(LinearToIndices(i));
-        }
-    }
-    else
-    {
-        // Hızlı yol: doğrudan kopya
-        *result.m_data = *m_data;
+        result[i] = At(LinearToIndices(i));
     }
 
     return result;
@@ -635,19 +656,11 @@ Tensor Tensor::operator+(const Tensor& other) const
     else
     {
         // GENEL YOL (view'lar için)
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
 
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
-
+            Shape indices = LinearToIndices(i);
+            
             result.At(indices) = At(indices) + other.At(indices);
         }
     }
@@ -673,18 +686,9 @@ Tensor Tensor::operator-(const Tensor& other) const
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
+            Shape indices = LinearToIndices(i);
 
             result.At(indices) = At(indices) - other.At(indices);
         }
@@ -711,18 +715,9 @@ Tensor Tensor::operator*(const Tensor& other) const
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
+            Shape indices = LinearToIndices(i);
 
             result.At(indices) = At(indices) * other.At(indices);
         }
@@ -744,18 +739,9 @@ Tensor Tensor::operator*(float scalar) const
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
+            Shape indices = LinearToIndices(i);
 
             result.At(indices) = At(indices) * scalar;
         }
@@ -782,18 +768,9 @@ Tensor Tensor::operator/(float scalar) const
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
+            Shape indices = LinearToIndices(i);
 
             result.At(indices) = At(indices) / scalar;
         }
@@ -818,18 +795,9 @@ Tensor& Tensor::operator+=(const Tensor& other)
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
+            Shape indices = LinearToIndices(i);
 
             At(indices) += other.At(indices);
         }
@@ -854,18 +822,9 @@ Tensor& Tensor::operator-=(const Tensor& other)
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
+            Shape indices = LinearToIndices(i);
 
             At(indices) -= other.At(indices);
         }
@@ -885,18 +844,9 @@ Tensor& Tensor::operator*=(float scalar)
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
+            Shape indices = LinearToIndices(i);
 
             At(indices) *= scalar;
         }
@@ -920,13 +870,8 @@ Tensor& Tensor::operator/=(float scalar)
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-
-            size_t remaining = i;
 
             //Mantıksal görünüm shape üzerinde i. index de hangi eleman var onu buluyoruz 
             //i = "Tensor'un kaçıncı elemanı?" indices = "Bu eleman shape içinde hangi koordinatta?"
@@ -943,12 +888,7 @@ Tensor& Tensor::operator/=(float scalar)
                       ↓
                 Multi Dimensional Index
             */
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];//Bu eksende kaç adım ilerlediğimizi buluyor.
-
-                remaining %= contigStrides[dim];//Bu eksenin hesabını yaptıktan sonra alt eksenlere kalan kısmı bırakıyor.
-            }
+            Shape indices = LinearToIndices(i);
 
             At(indices) /= scalar;
         }
@@ -984,11 +924,6 @@ std::string Tensor::ToString() const
 
 size_t Tensor::ComputeElementCount(const Shape& shape)
 {
-    if (shape.empty())
-    {
-        return 0;
-    }
-
     return std::accumulate(
         shape.begin(),
         shape.end(),
@@ -1034,20 +969,9 @@ float Tensor::Sum() const
     }
     else
     {
-        Strides contigStrides = ComputeContiguousStrides(m_shape);
-
         for (size_t i = 0; i < Size(); ++i)
         {
-            Shape indices(m_shape.size());
-
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-
-                remaining %= contigStrides[dim];
-            }
+            Shape indices = LinearToIndices(i);
 
             result += At(indices);
         }
@@ -1069,21 +993,9 @@ Tensor Tensor::Sum(size_t dim) const
 
     Tensor result(resultShape, 0.0f);
 
-    Strides resultContig = ComputeContiguousStrides(resultShape);
-
     for (size_t i = 0; i < result.Size(); ++i)
     {
-        Shape resultIndices(resultShape.size());
-
-        size_t remaining = i;
-
-        //Linear index → Çok boyutlu index dönüşümü başlıyor
-        for (size_t d = 0; d < resultShape.size(); ++d)
-        {
-            resultIndices[d] = remaining / resultContig[d];
-
-            remaining %= resultContig[d];
-        }
+        Shape resultIndices = LinearToIndices(i, resultShape);
 
         float sum = 0.0f;
 
@@ -1131,20 +1043,10 @@ float Tensor::Max() const
 
     float result = At(Shape(Rank(), 0));
 
-    Strides contigStrides = ComputeContiguousStrides(m_shape);
 
     for (size_t i = 1; i < Size(); ++i)
     {
-        Shape indices(m_shape.size());
-
-        size_t remaining = i;
-
-        for (size_t dim = 0; dim < m_shape.size(); ++dim)
-        {
-            indices[dim] = remaining / contigStrides[dim];
-
-            remaining %= contigStrides[dim];
-        }
+		Shape indices = LinearToIndices(i);
 
         result = std::max(result, At(indices));
     }
@@ -1156,39 +1058,20 @@ Tensor Tensor::Max(size_t dim) const
 {
     if (dim >= Rank())
     {
-        throw std::out_of_range(
-            "Invalid dimension.");
+        throw std::out_of_range("Invalid dimension.");
     }
 
     Shape resultShape = m_shape;
 
-    resultShape.erase(
-        resultShape.begin() + dim);
+    resultShape.erase(resultShape.begin() + dim);
 
     Tensor result(resultShape);
 
-    Strides resultContig = ComputeContiguousStrides(resultShape);
-
     for (size_t i = 0; i < result.Size(); ++i)
     {
-        Shape resultIndices(resultShape.size());
+        Shape resultIndices = LinearToIndices(i, resultShape);
 
-        size_t remaining = i;
-
-        for (size_t d = 0;
-            d < resultShape.size();
-            ++d)
-        {
-            resultIndices[d] =
-                remaining /
-                resultContig[d];
-
-            remaining %=
-                resultContig[d];
-        }
-
-        Shape srcIndices =
-            resultIndices;
+        Shape srcIndices = resultIndices;
 
         srcIndices.insert(srcIndices.begin() + dim, 0);
 
@@ -1211,28 +1094,14 @@ float Tensor::Min() const
 {
     if (!m_data || Size() == 0)
     {
-        throw std::runtime_error(
-            "Tensor is empty.");
+        throw std::runtime_error("Tensor is empty.");
     }
 
     float result = At(Shape(Rank(), 0));
 
-    Strides contigStrides = ComputeContiguousStrides(m_shape);
-
     for (size_t i = 1; i < Size(); ++i)
     {
-        Shape indices(m_shape.size());
-
-        size_t remaining = i;
-
-        for (size_t dim = 0;
-            dim < m_shape.size();
-            ++dim)
-        {
-            indices[dim] = remaining / contigStrides[dim];
-
-            remaining %= contigStrides[dim];
-        }
+        Shape indices = LinearToIndices(i);
 
         result = std::min(result, At(indices));
     }
@@ -1253,23 +1122,9 @@ Tensor Tensor::Min(size_t dim) const
 
     Tensor result(resultShape);
 
-    Strides resultContig = ComputeContiguousStrides(resultShape);
-
     for (size_t i = 0; i < result.Size(); ++i)
     {
-        Shape resultIndices(resultShape.size());
-
-        size_t remaining = i;
-
-        for (size_t d = 0; d < resultShape.size(); ++d)
-        {
-            resultIndices[d] =
-                remaining /
-                resultContig[d];
-
-            remaining %=
-                resultContig[d];
-        }
+        Shape resultIndices = LinearToIndices(i, resultShape);
 
         Shape srcIndices = resultIndices;
 
@@ -1303,20 +1158,9 @@ size_t Tensor::ArgMax() const
     float maxValue = At(Shape(Rank(), 0));
     size_t maxIndex = 0;
 
-    Strides contigStrides = ComputeContiguousStrides(m_shape);
-
     for (size_t i = 1; i < Size(); ++i)
     {
-        Shape indices(m_shape.size());
-
-        size_t remaining = i;
-
-        for (size_t dim = 0; dim < m_shape.size(); ++dim)
-        {
-            indices[dim] = remaining / contigStrides[dim];
-
-            remaining %= contigStrides[dim];
-        }
+        Shape indices = LinearToIndices(i);
 
         float value = At(indices);
 
@@ -1341,20 +1185,9 @@ size_t Tensor::ArgMin() const
     float minValue = At(Shape(Rank(), 0));
     size_t minIndex = 0;
 
-    Strides contigStrides = ComputeContiguousStrides(m_shape);
-
     for (size_t i = 1; i < Size(); ++i)
     {
-        Shape indices(m_shape.size());
-
-        size_t remaining = i;
-
-        for (size_t dim = 0; dim < m_shape.size(); ++dim)
-        {
-            indices[dim] = remaining / contigStrides[dim];
-
-            remaining %= contigStrides[dim];
-        }
+        Shape indices = LinearToIndices(i);
 
         float value = At(indices);
 
@@ -1381,20 +1214,10 @@ Tensor Tensor::ArgMax(size_t dim) const
 
     Tensor result(resultShape);
 
-    Strides resultContig = ComputeContiguousStrides(resultShape);
 
     for (size_t i = 0; i < result.Size(); ++i)
     {
-        Shape resultIndices(resultShape.size());
-
-        size_t remaining = i;
-
-        for (size_t d = 0; d < resultShape.size(); ++d)
-        {
-            resultIndices[d] = remaining / resultContig[d];
-
-            remaining %= resultContig[d];
-        }
+        Shape resultIndices = LinearToIndices(i, resultShape);
 
         Shape srcIndices = resultIndices;
 
@@ -1436,20 +1259,10 @@ Tensor Tensor::ArgMin(size_t dim) const
 
     Tensor result(resultShape);
 
-    Strides resultContig = ComputeContiguousStrides(resultShape);
 
     for (size_t i = 0; i < result.Size(); ++i)
     {
-        Shape resultIndices(resultShape.size());
-
-        size_t remaining = i;
-
-        for (size_t d = 0; d < resultShape.size(); ++d)
-        {
-            resultIndices[d] = remaining / resultContig[d];
-
-            remaining %= resultContig[d];
-        }
+        Shape resultIndices = LinearToIndices(i, resultShape);
 
         Shape srcIndices = resultIndices;
 
