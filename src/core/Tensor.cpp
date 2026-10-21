@@ -133,37 +133,37 @@ void Tensor::Reshape(const Shape& newShape)
     m_strides = ComputeContiguousStrides(newShape);
 }
 
-Tensor::Shape Tensor::LinearIndexToIndices() 
+
+Tensor::Shape Tensor::LinearToIndices(size_t linearIndex) const
 {
-    Strides contigStrides = ComputeContiguousStrides(m_shape);
     Shape indices(m_shape.size());
 
-    for (size_t i = 0; i < Tensor::Size(); ++i)
+    auto contigStrides = ComputeContiguousStrides(m_shape);
+
+    size_t remaining = linearIndex;
+
+    //Mantıksal görünüm shape üzerinde i. index de hangi eleman var onu buluyoruz 
+    //i = "Tensor'un kaçıncı elemanı?" indices = "Bu eleman shape içinde hangi koordinatta?"
+    //Örneğin: Shape = {2,3} için Stride = { 3,1 } olur. i=4 için indices = {1,1} olur. Yani 2. satır 2. sütun.
+    /* Mantıksal görünüm:(2 satır 3 sütun)
+        i=0 -> {0,0}
+        i=1 -> {0,1}
+        i=2 -> {0,2}
+        i=3 -> {1,0}
+        i=4 -> {1,1}
+        i=5 -> {1,2}
+
+        Linear Index
+              ↓
+        Multi Dimensional Index
+    */
+    for (size_t dim = 0; dim < m_shape.size(); ++dim)
     {
-        size_t remaining = i;
+        indices[dim] = remaining / contigStrides[dim];//Bu eksende kaç adım ilerlediğimizi buluyor.
 
-        //Mantıksal görünüm shape üzerinde i. index de hangi eleman var onu buluyoruz 
-        //i = "Tensor'un kaçıncı elemanı?" indices = "Bu eleman shape içinde hangi koordinatta?"
-        //Örneğin: Shape = {2,3} için Stride = { 3,1 } olur. i=4 için indices = {1,1} olur. Yani 2. satır 2. sütun.
-        /* Mantıksal görünüm:(2 satır 3 sütun)
-            i=0 -> {0,0}
-            i=1 -> {0,1}
-            i=2 -> {0,2}
-            i=3 -> {1,0}
-            i=4 -> {1,1}
-            i=5 -> {1,2}
-
-            Linear Index
-                  ↓
-            Multi Dimensional Index
-        */
-        for (size_t dim = 0; dim < m_shape.size(); ++dim)
-        {
-            indices[dim] = remaining / contigStrides[dim];//Bu eksende kaç adım ilerlediğimizi buluyor.
-
-            remaining %= contigStrides[dim];//Bu eksenin hesabını yaptıktan sonra alt eksenlere kalan kısmı bırakıyor.
-        }
+        remaining %= contigStrides[dim];//Bu eksenin hesabını yaptıktan sonra alt eksenlere kalan kısmı bırakıyor.
     }
+
     return indices;
 }
 
@@ -276,7 +276,7 @@ size_t Tensor::ComputeOffset(const Shape& indices) const
     return offset;
 }
 
-Tensor Tensor::Clone() const
+Tensor Tensor::Clone(CloneMode mode = CloneMode::Logical) const
 {
     if (!m_data)
     {
@@ -286,12 +286,7 @@ Tensor Tensor::Clone() const
     // Sonuç her zaman Contiguous olur
     Tensor result(m_shape);
 
-    if (IsContiguous())
-    {
-        // Hızlı yol: doğrudan kopya
-        *result.m_data = *m_data;
-    }
-    else
+    if (mode == CloneMode::Logical)
     {
         // View: mantıksal sırayla kopyala
         Strides contigStrides = ComputeContiguousStrides(m_shape);
@@ -299,17 +294,13 @@ Tensor Tensor::Clone() const
         for (size_t i = 0; i < Size(); ++i)
         {
             // i → mantıksal indeksler (contiguous mantıkta)
-            Shape indices(m_shape.size());
-            size_t remaining = i;
-
-            for (size_t dim = 0; dim < m_shape.size(); ++dim)
-            {
-                indices[dim] = remaining / contigStrides[dim];
-                remaining = remaining % contigStrides[dim];
-            }
-
-            result[i] = At(indices);
+            result[i] = At(LinearToIndices(i));
         }
+    }
+    else
+    {
+        // Hızlı yol: doğrudan kopya
+        *result.m_data = *m_data;
     }
 
     return result;

@@ -81,9 +81,13 @@ public:
     const float& At(const Shape& indices) const;
 
 public:
-
+    enum class CloneMode
+    {
+        Logical,   // Tensor görünümünü kopyala
+        Storage    // Tüm storage'ı kopyala
+    };
     // Deep copy: yeni ayrı veri bloğu, her zaman Contiguous
-    Tensor Clone() const;
+    Tensor Clone(CloneMode mode = CloneMode::Logical) const;
 
     // View: aynı veriyi paylaş, son iki ekseni yer değiştir
     // Sonuç: Contiguous OLMAYABILIR
@@ -185,7 +189,7 @@ public:
     Tensor& operator*=(float scalar);
     Tensor& operator/=(float scalar);
 
-    Shape LinearIndexToIndices();
+    Shape LinearToIndices(size_t linearIndex) const;
 
 public:
 
