@@ -140,7 +140,7 @@ public:
 
     Tensor Expand(const Shape& shape) const;
 
-    //Reduction
+    //Reduction = Bir eksendeki birden fazla elemanı tek bir değere indirgemek.
 public:
     // Tüm elemanların toplamını döndürür.
     float Sum() const;
@@ -159,20 +159,20 @@ public:
     Tensor Sum(size_t dim, bool keepDim) const;
 
     float Mean() const;
-    Tensor Mean(size_t dim) const;
+    Tensor Mean(size_t dim, bool keepDim = false) const;
 
     float Max() const;
-    Tensor Max(size_t dim) const;
+    Tensor Max(size_t dim, bool keepDim = false) const;
 
     float Min() const;
-    Tensor Min(size_t dim) const;
+    Tensor Min(size_t dim, bool keepDim = false) const;
 
     //Tensor içindeki en büyük elemanın mantıksal indexini döndürür.
     size_t ArgMax() const;
-    Tensor ArgMax(size_t dim) const;
+    Tensor ArgMax(size_t dim, bool keepDim = false) const;
 
     size_t ArgMin() const;
-    Tensor ArgMin(size_t dim) const;
+    Tensor ArgMin(size_t dim, bool keepDim = false) const;
 
     Tensor MatMul(const Tensor& other) const;
 public:

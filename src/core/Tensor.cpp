@@ -1032,9 +1032,9 @@ float Tensor::Mean() const
     return Sum() / static_cast<float>(Size());
 }
 
-Tensor Tensor::Mean(size_t dim) const
+Tensor Tensor::Mean(size_t dim, bool keepDim) const
 {
-    Tensor result = Sum(dim);
+    Tensor result = Sum(dim, keepDim);
 
     result /= static_cast<float>(m_shape[dim]);
 
@@ -1062,7 +1062,7 @@ float Tensor::Max() const
     return result;
 }
 
-Tensor Tensor::Max(size_t dim) const
+Tensor Tensor::Max(size_t dim, bool keepDim) const
 {
     if (dim >= Rank())
     {
@@ -1095,6 +1095,11 @@ Tensor Tensor::Max(size_t dim) const
         result.At(resultIndices) = maxValue;
     }
 
+    if (keepDim)
+    {
+        return result.Unsqueeze(dim);
+    }
+
     return result;
 }
 
@@ -1117,7 +1122,7 @@ float Tensor::Min() const
     return result;
 }
 
-Tensor Tensor::Min(size_t dim) const
+Tensor Tensor::Min(size_t dim, bool keepDim) const
 {
     if (dim >= Rank())
     {
@@ -1149,7 +1154,10 @@ Tensor Tensor::Min(size_t dim) const
 
         result.At(resultIndices) = minValue;
     }
-
+    if (keepDim)
+    {
+        return result.Unsqueeze(dim);
+    }
     return result;
 }
 
@@ -1205,7 +1213,7 @@ size_t Tensor::ArgMin() const
     return minIndex;
 }
 
-Tensor Tensor::ArgMax(size_t dim) const
+Tensor Tensor::ArgMax(size_t dim, bool keepDim) const
 {
     if (dim >= Rank())
     {
@@ -1246,11 +1254,14 @@ Tensor Tensor::ArgMax(size_t dim) const
 
         result.At(resultIndices) = static_cast<float>(maxIndex);
     }
-
+    if (keepDim)
+    {
+        return result.Unsqueeze(dim);
+    }
     return result;
 }
 
-Tensor Tensor::ArgMin(size_t dim) const
+Tensor Tensor::ArgMin(size_t dim, bool keepDim) const
 {
     if (dim >= Rank())
     {
@@ -1262,7 +1273,6 @@ Tensor Tensor::ArgMin(size_t dim) const
     resultShape.erase(resultShape.begin() + dim);
 
     Tensor result(resultShape);
-
 
     for (size_t i = 0; i < result.Size(); ++i)
     {
@@ -1291,7 +1301,10 @@ Tensor Tensor::ArgMin(size_t dim) const
 
         result.At(resultIndices) = static_cast<float>(minIndex);
     }
-
+    if (keepDim)
+    {
+        return result.Unsqueeze(dim);
+    }
     return result;
 }
 
