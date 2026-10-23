@@ -133,7 +133,6 @@ void Tensor::Reshape(const Shape& newShape)
     m_strides = ComputeContiguousStrides(newShape);
 }
 
-
 Tensor::Shape Tensor::LinearToIndices(size_t linearIndex) const
 {
     Shape indices(m_shape.size());
@@ -506,25 +505,20 @@ Tensor Tensor::Unsqueeze(size_t dim) const
 {
     if (dim > m_shape.size())
     {
-        throw std::out_of_range(
-            "Invalid dimension.");
+        throw std::out_of_range("Invalid dimension.");
     }
 
     Shape newShape = m_shape;
     Strides newStrides = m_strides;
 
-    newShape.insert(
-        newShape.begin() + dim,
-        1);
+    newShape.insert(newShape.begin() + dim, 1);
 
-    size_t newStride =
-        (dim < m_strides.size())
+    size_t newStride = 
+        (dim < m_strides.size()) 
         ? m_strides[dim]
         : 1;
 
-    newStrides.insert(
-        newStrides.begin() + dim,
-        newStride);
+    newStrides.insert(newStrides.begin() + dim, newStride);
 
     return Tensor(
         newShape,
@@ -539,8 +533,7 @@ Tensor Tensor::BroadcastTo(const Shape& targetShape) const
     // Örn:{3,4} -> {4}
     if (targetShape.size() < m_shape.size())
     {
-        throw std::invalid_argument(
-            "Target rank is smaller than source rank.");
+        throw std::invalid_argument("Target rank is smaller than source rank.");
     }
 
     Shape newShape = targetShape;
@@ -1015,6 +1008,18 @@ Tensor Tensor::Sum(size_t dim) const
     }
 
     return result;
+}
+
+Tensor Tensor::Sum(size_t dim, bool keepDim) const
+{
+    Tensor result = Sum(dim);
+
+    if (!keepDim)
+    {
+        return result;
+    }
+
+    return result.Unsqueeze(dim);
 }
 
 float Tensor::Mean() const
