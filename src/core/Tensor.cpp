@@ -631,12 +631,9 @@ static bool AreBothContiguousAndSameShape(const Tensor& a, const Tensor& b)
 
 Tensor Tensor::operator+(const Tensor& other) const
 {
-    if (m_shape != other.m_shape)
-    {
-        throw std::invalid_argument("Shape mismatch.");
-    }
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
 
-    Tensor result(m_shape);
+    Tensor result(resultShape);
 
     if (AreBothContiguousAndSameShape(*this, other))
     {
@@ -649,7 +646,6 @@ Tensor Tensor::operator+(const Tensor& other) const
     else
     {
         // GENEL YOL (view'lar için)
-
         for (size_t i = 0; i < Size(); ++i)
         {
             Shape indices = LinearToIndices(i);
@@ -663,12 +659,9 @@ Tensor Tensor::operator+(const Tensor& other) const
 
 Tensor Tensor::operator-(const Tensor& other) const
 {
-    if (m_shape != other.m_shape)
-    {
-        throw std::invalid_argument("Shape mismatch.");
-    }
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
 
-    Tensor result(m_shape);
+    Tensor result(resultShape);
 
     if (AreBothContiguousAndSameShape(*this, other))
     {
@@ -692,12 +685,9 @@ Tensor Tensor::operator-(const Tensor& other) const
 
 Tensor Tensor::operator*(const Tensor& other) const
 {
-    if (m_shape != other.m_shape)
-    {
-        throw std::invalid_argument("Shape mismatch.");
-    }
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
 
-    Tensor result(m_shape);
+    Tensor result(resultShape);
 
     if (AreBothContiguousAndSameShape(*this, other))
     {
@@ -774,9 +764,11 @@ Tensor Tensor::operator/(float scalar) const
 
 Tensor& Tensor::operator+=(const Tensor& other)
 {
-    if (m_shape != other.m_shape)
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
+
+    if (resultShape != m_shape)
     {
-        throw std::invalid_argument("Shape mismatch.");
+        throw std::invalid_argument("Broadcast result shape must match lhs shape.");
     }
 
     if (AreBothContiguousAndSameShape(*this, other))
@@ -792,7 +784,9 @@ Tensor& Tensor::operator+=(const Tensor& other)
         {
             Shape indices = LinearToIndices(i);
 
-            At(indices) += other.At(indices);
+            size_t otherOffset = other.ComputeBroadcastOffset(indices);
+
+            At(indices) += (*other.m_data)[otherOffset];
         }
     }
 
@@ -801,9 +795,11 @@ Tensor& Tensor::operator+=(const Tensor& other)
 
 Tensor& Tensor::operator-=(const Tensor& other)
 {
-    if (m_shape != other.m_shape)
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
+
+    if (resultShape != m_shape)
     {
-        throw std::invalid_argument("Shape mismatch.");
+        throw std::invalid_argument("Broadcast result shape must match lhs shape.");
     }
 
     if (AreBothContiguousAndSameShape(*this, other))
@@ -819,7 +815,9 @@ Tensor& Tensor::operator-=(const Tensor& other)
         {
             Shape indices = LinearToIndices(i);
 
-            At(indices) -= other.At(indices);
+            size_t otherOffset = other.ComputeBroadcastOffset(indices);
+
+            At(indices) -= (*other.m_data)[otherOffset];
         }
     }
 
