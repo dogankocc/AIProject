@@ -915,9 +915,9 @@ std::string Tensor::ToString() const
     return ss.str();
 }
 
-// Shape = {} -> boyutsuz tek sayıdır (yani scalar bir tensor dür)
-// Yani tek bir sayıdır, satır, sütun, eksen yani hiçbir boyutu yoktur.
-// Bu yüzden ComputeElementCount({}) = 1 olur. Yani tek bir eleman vardır.
+/* Shape = {} -> boyutsuz tek sayıdır(yani scalar bir tensor dür)
+ Yani tek bir sayıdır, satır, sütun, eksen yani hiçbir boyutu yoktur.
+ Bu yüzden ComputeElementCount({}) = 1 olur. Yani tek bir eleman vardır.*/
 size_t Tensor::ComputeElementCount(const Shape& shape)
 {
     return std::accumulate(
