@@ -947,6 +947,93 @@ Tensor::Strides Tensor::ComputeContiguousStrides(const Shape& shape)
     return strides;
 }
 
+Tensor::Shape Tensor::ComputeBroadcastShape(const Shape& a, const Shape& b)
+{
+    // Broadcast karşılaştırması sağdan sola yapılır.
+    // Örnek: a = {3,4} b = {4}
+    // b aslında: {1,4} gibi düşünülür.
+    // Bu yüzden önce en büyük rank'ı buluyoruz.
+
+    const size_t rank = std::max(a.size(), b.size());
+
+    Shape result(rank);
+
+    // Sonuç shape'inin her eksenini hesapla.
+    for (size_t i = 0; i < rank; ++i)
+    {
+        // Eğer tensorun bu eksende boyutu yoksa varsayılan olarak 1 kabul edilir.
+        size_t aDim = 1;
+        size_t bDim = 1;
+
+        // a shape'ini sağa hizala.
+        if (i >= rank - a.size())
+        {
+            aDim = a[i - (rank - a.size())];
+        }
+        // b shape'ini sağa hizala.
+        if (i >= rank - b.size())
+        {
+            bDim = b[i - (rank - b.size())];
+        }
+
+		// Broadcast kurallarına göre boyutları karşılaştır.
+        // 1) Boyutlar eşitse geçerli
+        if (aDim == bDim)
+        {
+            result[i] = aDim;
+        }
+        // 2) Sol taraf 1 ise broadcast edilebilir.
+        else if (aDim == 1)
+        {
+            result[i] = bDim;
+        }
+		// 3) Sağ taraf 1 ise broadcast edilebilir.
+        else if (bDim == 1)
+        {
+            result[i] = aDim;
+        }
+        else
+        {
+            throw std::invalid_argument("Shapes are not broadcast compatible.");
+        }
+    }
+
+    return result;
+}
+
+/*	source shape = {3,1,4}
+	target shape = {2,3,5,4}
+	resultIndices = {1,2,3,1} olsun. Yani target[1][2][3][1] demektir.
+    Soru? source tensorunda bu hangi elemana karşılık geliyor?
+	indices'leri source shape'e göre hizalayarak offset hesaplanır.
+	source aslında: {1,3,1,4} gibi düşünülür.
+	Bu yüzden source'un her eksenini target'a göre hizalayarak offset hesaplanır.
+    Özetle; Sonuç tensorundaki indeksleri al, bu tensorun shape'ına sağdan hizala, 
+    shape'i 1 olan eksenlerde indeksi 0'a zorla ve ardından normal stride hesabıyla offset üret
+*/
+size_t Tensor::ComputeBroadcastOffset(const Shape& resultIndices) const
+{
+    const size_t resultRank = resultIndices.size();
+
+    const size_t shapeOffset = resultRank - m_shape.size();
+
+    size_t offset = m_offset;
+
+    for (size_t d = 0; d < m_shape.size(); ++d)
+    {
+        size_t resultDim = d + shapeOffset;
+
+        size_t index =
+			(m_shape[d] == 1) // source tensorunun bu ekseni 1 ise, target tensorundaki hangi elemana karşılık geldiğini bulmak için index 0 alınır.
+            ? 0
+            : resultIndices[resultDim];
+
+        offset += index * m_strides[d];
+    }
+
+    return offset;
+}
+
 float Tensor::Sum() const
 {
     float result = 0.0f;

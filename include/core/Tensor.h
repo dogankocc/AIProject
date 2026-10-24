@@ -208,6 +208,11 @@ private:
     static size_t ComputeElementCount(const Shape& shape);
     static Strides ComputeContiguousStrides(const Shape& shape);
 
+	// İki shape'i broadcast edilebilir mi diye kontrol eder ve eğer edilebilirse, broadcast edilmiş shape'i döndürür.
+    static Shape ComputeBroadcastShape(const Shape& a, const Shape& b);
+
+	// resultIndices deki index leri kullanarak, bu tensorun m_data üzerindeki gerçek offset'ini hesaplar.
+    size_t ComputeBroadcastOffset(const Shape& resultIndices) const;
 
 private:
 	// Tensorun görünüşü Ör.{2,3,4} demek 3boyutlu bir array, 0. boyut 2 elemanlı, 1. boyut 3 elemanlı, 2. boyut 4 elemanlı demektir 
