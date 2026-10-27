@@ -34,6 +34,28 @@ public:
         const DataPtr& data,
         size_t offset);
 
+    // Factory methods
+    static Tensor Zeros(
+        const Shape& shape);
+
+    static Tensor Ones(
+        const Shape& shape);
+
+    static Tensor Random(
+        const Shape& shape,
+        float min = 0.0f,
+        float max = 1.0f);
+
+    // Normal (Gaussian) distribution.
+    // mean = 0 -> dağılımın merkezi 0'dır.
+    // stddev = 1 -> değerlerin 0 etrafındaki yayılımını belirler.
+    // Dağılım simetrik olduğundan pozitif ve negatif değerler yaklaşık dengeli oluşur.
+    // Bu nedenle üretilen sayıların ortalaması yaklaşık 0 olur.
+    static Tensor Randn(
+        const Shape& shape,
+        float mean = 0.0f,
+        float stddev = 1.0f);
+
 public:
 
     // Bellek doğrudan erişim
@@ -175,6 +197,13 @@ public:
     Tensor ArgMin(size_t dim, bool keepDim = false) const;
 
     Tensor MatMul(const Tensor& other) const;
+
+	//Unary işlemler
+    Tensor Exp() const;
+    Tensor Log() const;
+    Tensor Sqrt() const;
+    Tensor Abs() const;
+    Tensor Pow(float exponent) const;
 public:
 
     // Aritmetik işlemler

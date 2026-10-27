@@ -3,6 +3,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <sstream>
+#include <random>
 
 Tensor::Tensor()
 {
@@ -51,6 +52,48 @@ Tensor::Tensor(
     m_data(data),
     m_offset(offset)
 {
+}
+
+Tensor Tensor::Zeros(const Shape& shape)
+{
+    return Tensor(shape, 0.0f);
+}
+
+Tensor Tensor::Ones(const Shape& shape)
+{
+    return Tensor(shape, 1.0f);
+}
+
+Tensor Tensor::Random(const Shape& shape, float min, float max)
+{
+    Tensor result(shape);
+
+    static thread_local std::mt19937 rng(std::random_device{}());
+
+    std::uniform_real_distribution<float>dist(min, max);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        result[i] = dist(rng);
+    }
+
+    return result;
+}
+
+Tensor Tensor::Randn(const Shape& shape, float mean, float stddev)
+{
+    Tensor result(shape);
+
+    static thread_local std::mt19937 rng(std::random_device{}());
+
+    std::normal_distribution<float>dist(mean, stddev);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        result[i] = dist(rng);
+    }
+
+    return result;
 }
 
 float* Tensor::Data()
@@ -1426,6 +1469,156 @@ Tensor Tensor::MatMul(const Tensor& other) const
             }
 
             result.At({ m, n }) = sum;
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Log() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            float value = (*this)[i];
+
+            if (value <= 0.0f)
+            {
+                throw std::runtime_error("Log undefined for values <= 0.");
+            }
+
+            result[i] = std::log(value);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            float value = At(indices);
+
+            if (value <= 0.0f)
+            {
+                throw std::runtime_error("Log undefined for values <= 0.");
+            }
+            //std::log(value) demek -> e tabanında value kaçtır yani; e sayısını kaçıncı kuvvete çıkarırsam value elde ederim?
+            result.At(indices) = std::log(value);
+        }
+    }
+
+    return result;
+}
+
+//Log işleminin tersi olan exp işlemi, yani e tabanında üstel fonksiyon uygulanır.
+Tensor Tensor::Exp() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::exp((*this)[i]);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::exp(At(indices));
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Sqrt() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            float value = (*this)[i];
+
+            if (value < 0.0f)
+            {
+                throw std::runtime_error("Sqrt undefined for negative values.");
+            }
+
+            result[i] = std::sqrt(value);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            float value = At(indices);
+
+            if (value < 0.0f)
+            {
+                throw std::runtime_error("Sqrt undefined for negative values.");
+            }
+
+            result.At(indices) = std::sqrt(value);
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Abs() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::abs((*this)[i]);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::abs(At(indices));
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Pow(float exponent) const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] =
+                std::pow((*this)[i], exponent);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) =std::pow(At(indices), exponent);
         }
     }
 
