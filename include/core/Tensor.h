@@ -138,8 +138,7 @@ public:
     // shape ve stride'ları yeniden düzenleyen view oluşturur.
 	// Örnek: shape={2,3,4}, Permute({2,0,1}) -> dims[0] = oldDims[2] = 4, dims[1] = oldDims[0] = 2, dims[2] = oldDims[1] = 3, shape = {4,2,3}, strides buna göre yeniden hesaplanır.
     // dims[i], yeni i. eksenin hangi eski eksenden geleceğini belirtir.
-    Tensor Permute(
-        const std::vector<size_t>& dims) const;
+    Tensor Permute(const std::vector<size_t>& dims) const;
 
 	// View: aynı veriyi paylaş, farklı shape (contiguous olmalı)
     Tensor View(const Shape& shape) const;
@@ -206,6 +205,8 @@ public:
     Tensor Pow(float exponent) const;
 
     Tensor Softmax(size_t dim) const;
+    Tensor Variance(size_t dim, bool keepDim) const;
+    Tensor Std(size_t dim, bool keepDim) const;
 public:
 
     // Aritmetik işlemler

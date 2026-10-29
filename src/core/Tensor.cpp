@@ -1687,3 +1687,22 @@ Tensor Tensor::Softmax(size_t dim) const
     // ve ilgili eksendeki toplamları 1 olur.
     return expTensor / sums;
 }
+
+Tensor Tensor::Variance(size_t dim, bool keepDim) const
+{
+    // İlgili eksendeki ortalamayı hesapla.
+    // keepDim=true kullanıyoruz çünkü çıkarma sırasında
+    // broadcasting'e ihtiyacımız olacak.
+    Tensor mean = Mean(dim, true);// Mean bul
+
+    Tensor diff = (*this) - mean; // Her elemandan mean'i çıkar
+
+    Tensor squared = diff.Pow(2.0f); //Sonucu kare al
+
+    return squared.Mean(dim, keepDim); // Karelerin ortalamasını al
+}
+
+Tensor Tensor::Std(size_t dim, bool keepDim) const
+{
+    return Variance(dim, keepDim).Sqrt();
+}
