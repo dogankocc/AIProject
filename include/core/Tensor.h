@@ -204,6 +204,8 @@ public:
     Tensor Sqrt() const;
     Tensor Abs() const;
     Tensor Pow(float exponent) const;
+
+    Tensor Softmax(size_t dim) const;
 public:
 
     // Aritmetik işlemler
@@ -211,6 +213,7 @@ public:
     Tensor operator+(const Tensor& other) const;
     Tensor operator-(const Tensor& other) const;
     Tensor operator*(const Tensor& other) const;
+    Tensor operator/(const Tensor& other) const;
 
     Tensor operator*(float scalar) const;
     Tensor operator/(float scalar) const;

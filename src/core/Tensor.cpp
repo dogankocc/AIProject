@@ -752,6 +752,39 @@ Tensor Tensor::operator*(const Tensor& other) const
     return result;
 }
 
+Tensor Tensor::operator/(const Tensor& other) const
+{
+	// Broadcast edilmiş iki tensorun shape'ini alıyoruz.
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
+
+    Tensor result(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        // resultShape'in indekslerini buluyoruz 
+        Shape indices = LinearToIndices(i, resultShape);
+
+        // Her tensor için broadcast offsetini hesaplıyoruz 
+        size_t lhsOffset = ComputeBroadcastOffset(indices);
+        size_t rhsOffset = other.ComputeBroadcastOffset(indices);
+
+        // m_data içinden bu offsetlerdeki değerleri alıyoruz 
+        // Sol tensorun broadcast sonrası eşleşen elemanı.
+        float lhsValue = (*m_data)[lhsOffset];
+        // Sağ tensorun broadcast sonrası eşleşen elemanı.
+        float rhsValue = (*other.m_data)[rhsOffset];
+
+        if (rhsValue == 0.0f)
+        {
+            throw std::runtime_error("Division by zero.");
+        }
+        // İşlemi yapıp result'ın aynı indeksine yazıyoruz
+        result.At(indices) = lhsValue / rhsValue;
+    }
+
+    return result;
+}
+
 Tensor Tensor::operator*(float scalar) const
 {
     Tensor result(m_shape);
@@ -1623,4 +1656,34 @@ Tensor Tensor::Pow(float exponent) const
     }
 
     return result;
+}
+
+Tensor Tensor::Softmax(size_t dim) const
+{
+    // Numerical stability:
+    // Softmax'tan önce ilgili eksendeki maksimum değeri çıkarırız.
+    // Örn: [1000, 1001, 1002] max=1002 çıkar -> [-2, -1, 0]
+    // Böylece Exp() sırasında taşma (overflow) oluşmaz.
+    Tensor shifted = (*this) - Max(dim, true);
+
+    // Üstel fonksiyon uygula.
+    // Softmax formülü:
+    // exp(x_i) / Σ exp(x_j)
+    // Formülün pay kısmını hesaplıyoruz.
+    Tensor expTensor = shifted.Exp();
+
+    // Aynı eksendeki tüm exp değerlerini topla.
+    // keepDim=true kullanıyoruz çünkü:
+    // expTensor shape'i ile bölme yaparken
+    // broadcasting'in çalışabilmesi gerekiyor.
+    // Örn:
+    // expTensor = {2,3,4}
+    // sums      = {2,3,1}
+    Tensor sums = expTensor.Sum(dim, true);
+
+    // Her elemanı kendi eksenindeki toplam exp değerine böl.
+    // Sonuç:
+    // Her dilimdeki değerler 0-1 arasına gelir
+    // ve ilgili eksendeki toplamları 1 olur.
+    return expTensor / sums;
 }
