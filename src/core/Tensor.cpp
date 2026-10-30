@@ -1605,37 +1605,102 @@ Tensor Tensor::ArgMin(size_t dim, bool keepDim) const
 
 Tensor Tensor::MatMul(const Tensor& other) const
 {
-    if (Rank() != 2 || other.Rank() != 2)
+    if (Rank() < 2 || other.Rank() < 2)
     {
-        throw std::invalid_argument("MatMul supports only 2D tensors.");
+        throw std::invalid_argument("MatMul requires tensors with rank >= 2.");
     }
-
-    size_t M = m_shape[0];
-    size_t K = m_shape[1];
-
-    size_t K2 = other.m_shape[0];
-    size_t N = other.m_shape[1];
+	// Son iki boyutlar matris çarpımı için kullanılır.
+    // A(..., M, K)
+    // B(..., K, N)
+    // Result(..., M, N)
+    // Örn: A = { 2,3,4,5 } B = { 1,3,5,6 }
+	// M = 4, K = 5 olur. Yani A'nın son iki boyutu 4 x 5 lik bir matris demektir.
+    size_t M = m_shape[Rank() - 2];
+    size_t K = m_shape[Rank() - 1];
+	// K2 = 5, N = 6 olur. Yani B'nin son iki boyutu 5 x 6 lık bir matris demektir.
+    size_t K2 = other.m_shape[other.Rank() - 2];
+    size_t N = other.m_shape[other.Rank() - 1];
 
     if (K != K2)
     {
         throw std::invalid_argument("MatMul dimension mismatch.");
     }
+	// Batch shape'leri ayır. 
+    // Yani son iki boyutlar matris çarpımı için kullanılırken, diğer boyutlar batch olarak kabul edilir.
+	// Örn: A = {2,3,4,5} B = {1,3,5,6} için batch shape = {2,3} olur.
+	// Normal MatMul kuralı: (M,K) × (K,N) -> (M,N) olduğuna göre, 
+    // Son iki boyutların matris çarpımı: (4,5) × (5,6) -> (4,6) olur.
+    // Batch shape ile birlikte sonuç shape = batchShape + {M,N} den {2,3,4,6} olur.
+	// Shape = {2,3,4,6} ise 2 x 3 tane 4 x 6 lık matris var demek olur. 
+    // Yani 2 x 3 = 6 tane matris var ve her biri 4 x 6 boyutunda.
+    Shape batchA(m_shape.begin(), m_shape.end() - 2);
+    Shape batchB(other.m_shape.begin(), other.m_shape.end() - 2);
 
-    Tensor result({ M, N }, 0.0f);
+	// Batch shape'leri için broadcasting yapılır.
+    Shape batchShape = ComputeBroadcastShape(batchA, batchB);
 
-	// Birincinin satırları ile ikincinin sütunları çarpılır ve toplanır. Yani A[i][k] * B[k][j] = C[i][j]
-    for (size_t m = 0; m < M; ++m)
+	// Sonuç tensorunun shape'i batch shape + (M,N) olur.
+    Shape resultShape = batchShape;
+
+    resultShape.push_back(M);
+    resultShape.push_back(N);
+
+    Tensor result(resultShape, 0.0f);
+
+    size_t batchCount = ComputeElementCount(batchShape);
+
+    for (size_t batch = 0; batch < batchCount; ++batch)
     {
-        for (size_t n = 0; n < N; ++n)
+        // Batch koordinatlarını al.
+        // Mesela: batchShape = {2,3} için
+        // batch=0 batchIndices = { 0,0 } 
+        // batch=1 batchIndices = { 0,1 }
+        // batch=2 batchIndices = { 0,2 } 
+        // batch=3 batchIndices = { 1,0 }
+		// batch=4 batchIndices = { 1,1 }
+		// batch=5 batchIndices = { 1,2 } olur.
+        // Yani 2 x 3 = 6 tane batch var ve her bir batch için matris çarpımı yapılır.
+        Shape batchIndices = LinearToIndices(batch, batchShape);
+
+        // M = A'nın son ikinci boyutu, yani batch boyutlar ayrıldıktan sonra 
+		// kalan son 2 boyutun yani A matrisinin satır sayısı. 
+        // Yani sonuç matrisinin satır sayısı.
+		for (size_t m = 0; m < M; ++m) // Örneğin: A = {2,3,4,5} B = {1,3,5,6} için M = 4 olur. 
         {
-            float sum = 0.0f;
-
-            for (size_t k = 0; k < K; ++k)
+			// N = B matrisinin son boyutu, yani B matrisinin sütun sayısı. 
+            // Yani sonuç matrisinin sütun sayısı.
+			for (size_t n = 0; n < N; ++n) // Örneğin: A = {2,3,4,5} B = {1,3,5,6} için N = 6 olur.
             {
-                sum += At({ m, k }) * other.At({ k, n });
-            }
+                float sum = 0.0f;
 
-            result.At({ m, n }) = sum;
+				// K = A matrisinin son boyutu,
+                for (size_t k = 0; k < K; ++k)
+                {
+                    Shape lhsIndices = batchIndices;
+
+                    lhsIndices.push_back(m);
+                    lhsIndices.push_back(k);
+
+                    Shape rhsIndices = batchIndices;
+
+                    rhsIndices.push_back(k);
+                    rhsIndices.push_back(n);
+
+                    size_t lhsOffset = ComputeBroadcastOffset(lhsIndices);
+
+                    size_t rhsOffset = other.ComputeBroadcastOffset(rhsIndices);
+
+                    sum += (*m_data)[lhsOffset] * (*other.m_data)[rhsOffset];
+                }
+
+                Shape resultIndices = batchIndices;
+
+                resultIndices.push_back(m);
+                resultIndices.push_back(n);
+
+                //MatMul Kuralı: C[m][n] = Σ A[m][k] * B[k][n]
+                result.At(resultIndices) = sum;
+            }
         }
     }
 

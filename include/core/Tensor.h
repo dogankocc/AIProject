@@ -265,6 +265,9 @@ private:
 	// resultIndices deki index leri kullanarak, bu tensorun m_data üzerindeki gerçek offset'ini hesaplar.
     size_t ComputeBroadcastOffset(const Shape& resultIndices) const;
 
+    // batch boyutları üzerinde broadcast uygula ilgili matrisin başlangıç adresini döndür.
+    size_t ComputeBatchBroadcastOffset(const Shape& batchIndices, const Shape& resultBatchShape) const;
+
 private:
 	// Tensorun görünüşü Ör.{2,3,4} demek 3boyutlu bir array, 0. boyut 2 elemanlı, 1. boyut 3 elemanlı, 2. boyut 4 elemanlı demektir 
     Shape m_shape;
