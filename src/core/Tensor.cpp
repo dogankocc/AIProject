@@ -680,7 +680,6 @@ Tensor Tensor::operator+(const Tensor& other) const
 
     if (AreBothContiguousAndSameShape(*this, other))
     {
-        // HIZLI YOL
         for (size_t i = 0; i < Size(); ++i)
         {
             result[i] = (*this)[i] + other[i];
@@ -688,12 +687,19 @@ Tensor Tensor::operator+(const Tensor& other) const
     }
     else
     {
-        // GENEL YOL (view'lar için)
-        for (size_t i = 0; i < Size(); ++i)
+        for (size_t i = 0; i < result.Size(); ++i)
         {
-            Shape indices = LinearToIndices(i);
-            
-            result.At(indices) = At(indices) + other.At(indices);
+            Shape indices = LinearToIndices(i, resultShape);
+
+            size_t lhsOffset = ComputeBroadcastOffset(indices);
+
+            size_t rhsOffset = other.ComputeBroadcastOffset(indices);
+
+            float lhsValue = (*m_data)[lhsOffset];
+
+            float rhsValue = (*other.m_data)[rhsOffset];
+
+            result.At(indices) = lhsValue + rhsValue;
         }
     }
 
@@ -715,11 +721,19 @@ Tensor Tensor::operator-(const Tensor& other) const
     }
     else
     {
-        for (size_t i = 0; i < Size(); ++i)
+        for (size_t i = 0; i < result.Size(); ++i)
         {
-            Shape indices = LinearToIndices(i);
+            Shape indices = LinearToIndices(i, resultShape);
 
-            result.At(indices) = At(indices) - other.At(indices);
+            size_t lhsOffset = ComputeBroadcastOffset(indices);
+
+            size_t rhsOffset = other.ComputeBroadcastOffset(indices);
+
+            float lhsValue = (*m_data)[lhsOffset];
+
+            float rhsValue = (*other.m_data)[rhsOffset];
+
+            result.At(indices) = lhsValue - rhsValue;
         }
     }
 
@@ -741,11 +755,19 @@ Tensor Tensor::operator*(const Tensor& other) const
     }
     else
     {
-        for (size_t i = 0; i < Size(); ++i)
+        for (size_t i = 0; i < result.Size(); ++i)
         {
-            Shape indices = LinearToIndices(i);
+            Shape indices = LinearToIndices(i, resultShape);
 
-            result.At(indices) = At(indices) * other.At(indices);
+            size_t lhsOffset = ComputeBroadcastOffset(indices);
+
+            size_t rhsOffset = other.ComputeBroadcastOffset(indices);
+
+            float lhsValue = (*m_data)[lhsOffset];
+
+            float rhsValue = (*other.m_data)[rhsOffset];
+
+            result.At(indices) = lhsValue * rhsValue;
         }
     }
 
@@ -1038,6 +1060,35 @@ Tensor& Tensor::operator*=(const Tensor& other)
     return *this;
 }
 
+Tensor Tensor::Clamp(float minValue, float maxValue) const
+{
+    if (minValue > maxValue)
+    {
+        throw std::invalid_argument("minValue cannot be greater than maxValue.");
+    }
+
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::clamp((*this)[i], minValue, maxValue);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::clamp(At(indices), minValue, maxValue);
+        }
+    }
+
+    return result;
+}
+
 std::string Tensor::ToString() const
 {
     std::stringstream ss;
@@ -1061,6 +1112,15 @@ std::string Tensor::ToString() const
     ss << ", use_count=" << UseCount() << ")";
 
     return ss.str();
+}
+
+Tensor Tensor::Normalize(size_t dim) const
+{
+    Tensor mean = Mean(dim, true);
+
+    Tensor std = Std(dim, true);
+
+    return ((*this) - mean) / std;
 }
 
 /* Shape = {} -> boyutsuz tek sayıdır(yani scalar bir tensor dür)

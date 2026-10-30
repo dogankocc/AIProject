@@ -163,6 +163,7 @@ public:
 
     //Reduction = Bir eksendeki birden fazla elemanı tek bir değere indirgemek.
 public:
+    // Element-wise Arithmetic
     // Tüm elemanların toplamını döndürür.
     float Sum() const;
 
@@ -215,9 +216,10 @@ public:
 	Tensor Sigmoid() const;
 	// Tanh fonksiyonu, giriş değerlerini -1 ile 1 arasında sıkıştırır.
     Tensor Tanh() const;
+
 public:
 
-    // Aritmetik işlemler
+    // Element-wise Arithmetic:
     // Eğer her iki taraf da Contiguous ise HIZLI yol kullanılır
     Tensor operator+(const Tensor& other) const;
     Tensor operator-(const Tensor& other) const;
@@ -237,11 +239,17 @@ public:
 
     Shape LinearToIndices(size_t linearIndex) const;
     Shape LinearToIndices(size_t linearIndex, const Shape& shape) const;
+   
+    // min'den küçükse min yap, max'tan büyükse max yap, arada ise dokunma
+    Tensor Clamp(float minValue, float maxValue) const;
 
 public:
 
     std::string ToString() const;
 
+    //Statistics / Preprocessing
+
+    Tensor Normalize(size_t dim) const;
 private:
 
     // Bu nesnenin stride'ı ile offset hesapla
