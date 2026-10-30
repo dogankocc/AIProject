@@ -964,6 +964,49 @@ Tensor& Tensor::operator/=(float scalar)
     return *this;
 }
 
+Tensor& Tensor::operator/=(const Tensor& other)
+{
+    Shape resultShape =ComputeBroadcastShape(m_shape, other.m_shape);
+
+    if (resultShape != m_shape)
+    {
+        throw std::invalid_argument("Broadcast result shape must match lhs shape.");
+    }
+
+    if (AreBothContiguousAndSameShape(*this, other))
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            if (other[i] == 0.0f)
+            {
+                throw std::runtime_error("Division by zero.");
+            }
+
+            (*this)[i] /= other[i];
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            size_t otherOffset = other.ComputeBroadcastOffset(indices);
+
+            float rhsValue = (*other.m_data)[otherOffset];
+
+            if (rhsValue == 0.0f)
+            {
+                throw std::runtime_error("Division by zero.");
+            }
+
+            At(indices) /= rhsValue;
+        }
+    }
+
+    return *this;
+}
+
 std::string Tensor::ToString() const
 {
     std::stringstream ss;
@@ -1749,6 +1792,30 @@ Tensor Tensor::Sigmoid() const
             Shape indices = LinearToIndices(i);
 
             result.At(indices) = 1.0f / (1.0f + std::exp(-At(indices)));
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Tanh() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::tanh((*this)[i]);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::tanh(At(indices));
         }
     }
 

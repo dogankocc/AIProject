@@ -208,11 +208,13 @@ public:
     Tensor Variance(size_t dim, bool keepDim) const;
     Tensor Std(size_t dim, bool keepDim) const;
 
-    // Activation functions
-
+    // Activation functions:
 	Tensor ReLU() const;//Negatif değerleri 0 yapar, pozitif değerleri olduğu gibi bırakır.
-	Tensor Sigmoid() const;// 1/(1+exp(-x)) formülü ile sigmoid fonksiyonunu uygular.
-
+    // 1/(1+exp(-x)) formülü ile sigmoid fonksiyonunu uygular. 
+    // Bu fonksiyon, giriş değerlerini 0 ile 1 arasında sıkıştırır ve genellikle sınıflandırma problemlerinde kullanılır.
+	Tensor Sigmoid() const;
+	// Tanh fonksiyonu, giriş değerlerini -1 ile 1 arasında sıkıştırır.
+    Tensor Tanh() const;
 public:
 
     // Aritmetik işlemler
@@ -230,6 +232,7 @@ public:
     Tensor& operator-=(const Tensor& other);
     Tensor& operator*=(float scalar);
     Tensor& operator/=(float scalar);
+    Tensor& operator/=(const Tensor& other);
 
     Shape LinearToIndices(size_t linearIndex) const;
     Shape LinearToIndices(size_t linearIndex, const Shape& shape) const;
