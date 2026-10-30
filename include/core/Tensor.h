@@ -207,6 +207,12 @@ public:
     Tensor Softmax(size_t dim) const;
     Tensor Variance(size_t dim, bool keepDim) const;
     Tensor Std(size_t dim, bool keepDim) const;
+
+    // Activation functions
+
+	Tensor ReLU() const;//Negatif değerleri 0 yapar, pozitif değerleri olduğu gibi bırakır.
+	Tensor Sigmoid() const;// 1/(1+exp(-x)) formülü ile sigmoid fonksiyonunu uygular.
+
 public:
 
     // Aritmetik işlemler

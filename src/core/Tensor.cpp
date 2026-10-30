@@ -1706,3 +1706,51 @@ Tensor Tensor::Std(size_t dim, bool keepDim) const
 {
     return Variance(dim, keepDim).Sqrt();
 }
+
+Tensor Tensor::ReLU() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::max(0.0f, (*this)[i]);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::max(0.0f, At(indices));
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Sigmoid() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = 1.0f / (1.0f + std::exp(-(*this)[i]));
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = 1.0f / (1.0f + std::exp(-At(indices)));
+        }
+    }
+
+    return result;
+}
