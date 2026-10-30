@@ -966,14 +966,14 @@ Tensor& Tensor::operator/=(float scalar)
 
 Tensor& Tensor::operator/=(const Tensor& other)
 {
-    Shape resultShape =ComputeBroadcastShape(m_shape, other.m_shape);
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
 
     if (resultShape != m_shape)
     {
         throw std::invalid_argument("Broadcast result shape must match lhs shape.");
     }
 
-    if (AreBothContiguousAndSameShape(*this, other))
+	if (AreBothContiguousAndSameShape(*this, other))//Contiguous ve aynı shape ise hızlı yol
     {
         for (size_t i = 0; i < Size(); ++i)
         {
@@ -985,6 +985,44 @@ Tensor& Tensor::operator/=(const Tensor& other)
             (*this)[i] /= other[i];
         }
     }
+	else// Değilse: indices -> other broadcast offset -> other value -> this value /= other value
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            size_t otherOffset = other.ComputeBroadcastOffset(indices);
+
+            float otherValue = (*other.m_data)[otherOffset];
+
+            if (otherValue == 0.0f)
+            {
+                throw std::runtime_error("Division by zero.");
+            }
+
+            At(indices) /= otherValue;
+        }
+    }
+
+    return *this;
+}
+
+Tensor& Tensor::operator*=(const Tensor& other)
+{
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
+
+    if (resultShape != m_shape)
+    {
+        throw std::invalid_argument("Broadcast result shape must match lhs shape.");
+    }
+
+    if (AreBothContiguousAndSameShape(*this, other))
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            (*this)[i] *= other[i];
+        }
+    }
     else
     {
         for (size_t i = 0; i < Size(); ++i)
@@ -993,14 +1031,7 @@ Tensor& Tensor::operator/=(const Tensor& other)
 
             size_t otherOffset = other.ComputeBroadcastOffset(indices);
 
-            float rhsValue = (*other.m_data)[otherOffset];
-
-            if (rhsValue == 0.0f)
-            {
-                throw std::runtime_error("Division by zero.");
-            }
-
-            At(indices) /= rhsValue;
+            At(indices) *= (*other.m_data)[otherOffset];
         }
     }
 

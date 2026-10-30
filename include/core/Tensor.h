@@ -233,6 +233,7 @@ public:
     Tensor& operator*=(float scalar);
     Tensor& operator/=(float scalar);
     Tensor& operator/=(const Tensor& other);
+    Tensor& operator*=(const Tensor& other);
 
     Shape LinearToIndices(size_t linearIndex) const;
     Shape LinearToIndices(size_t linearIndex, const Shape& shape) const;
