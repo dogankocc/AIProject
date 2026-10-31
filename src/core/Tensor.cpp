@@ -1613,6 +1613,9 @@ Tensor Tensor::MatMul(const Tensor& other) const
     // A(..., M, K)
     // B(..., K, N)
     // Result(..., M, N)
+    // M = A'nın satır sayısı
+    // K = ortak boyut
+    // N = B'nin sütun sayısı
     // Örn: A = { 2,3,4,5 } B = { 1,3,5,6 }
 	// M = 4, K = 5 olur. Yani A'nın son iki boyutu 4 x 5 lik bir matris demektir.
     size_t M = m_shape[Rank() - 2];
@@ -1627,19 +1630,27 @@ Tensor Tensor::MatMul(const Tensor& other) const
     }
 	// Batch shape'leri ayır. 
     // Yani son iki boyutlar matris çarpımı için kullanılırken, diğer boyutlar batch olarak kabul edilir.
-	// Örn: A = {2,3,4,5} B = {1,3,5,6} için batch shape = {2,3} olur.
-	// Normal MatMul kuralı: (M,K) × (K,N) -> (M,N) olduğuna göre, 
-    // Son iki boyutların matris çarpımı: (4,5) × (5,6) -> (4,6) olur.
-    // Batch shape ile birlikte sonuç shape = batchShape + {M,N} den {2,3,4,6} olur.
-	// Shape = {2,3,4,6} ise 2 x 3 tane 4 x 6 lık matris var demek olur. 
-    // Yani 2 x 3 = 6 tane matris var ve her biri 4 x 6 boyutunda.
+    // A = {2,3,4,5}
+    // B = { 1,3,5,6 }
+    //Adım 1 Önce batch ve matris kısımlarını ayırıyoruz :
+    // A = { 2,3 | 4,5 }
+    // B = { 1,3 | 5,6 }
+    // batchA = { 2,3 }
+    // batchB = { 1,3 }
+    // ve 
+    // A matrisi = 4x5
+    // B matrisi = 5x6
     Shape batchA(m_shape.begin(), m_shape.end() - 2);
     Shape batchB(other.m_shape.begin(), other.m_shape.end() - 2);
 
-	// Batch shape'leri için broadcasting yapılır.
+    // Adım 2 Batch shape'leri için broadcasting yapılır.
+    // {2,3} vs {1,3} -> {2,3} olur. Yani 2 x 3 = 6 tane batch var demektir.
     Shape batchShape = ComputeBroadcastShape(batchA, batchB);
 
 	// Sonuç tensorunun shape'i batch shape + (M,N) olur.
+    // Normal MatMul kuralı: (M,K) × (K,N) -> (M,N) olduğuna göre, 
+    // Son iki boyutların matris çarpımı: (4,5) × (5,6) -> (4,6) olur.
+    // Batch'i de ekleyince: {2,3,4,6} yani 2 x 3 tane 4 x 6 lık matris var demek olur. 
     Shape resultShape = batchShape;
 
     resultShape.push_back(M);
@@ -1649,6 +1660,7 @@ Tensor Tensor::MatMul(const Tensor& other) const
 
     size_t batchCount = ComputeElementCount(batchShape);
 
+    //Adım 4: Batch döngüsü
     for (size_t batch = 0; batch < batchCount; ++batch)
     {
         // Batch koordinatlarını al.
@@ -1660,6 +1672,8 @@ Tensor Tensor::MatMul(const Tensor& other) const
 		// batch=4 batchIndices = { 1,1 }
 		// batch=5 batchIndices = { 1,2 } olur.
         // Yani 2 x 3 = 6 tane batch var ve her bir batch için matris çarpımı yapılır.
+		// batchIndices = { 0,0 } demek -> A[0][0] ve B[0][0] demektir.
+		// Yani Şimdi hangi matrisi çarpacağız? sorusuna cevap verir.
         Shape batchIndices = LinearToIndices(batch, batchShape);
 
         // M = A'nın son ikinci boyutu, yani batch boyutlar ayrıldıktan sonra 
@@ -1674,6 +1688,8 @@ Tensor Tensor::MatMul(const Tensor& other) const
                 float sum = 0.0f;
 
 				// K = A matrisinin son boyutu,
+                // A x B çarpım matrisinin bir elemanı hesaplanırken;
+				// c[m][n] = Σ A[m][k] * B[k][n] formülü kullanılır.
                 for (size_t k = 0; k < K; ++k)
                 {
                     Shape lhsIndices = batchIndices;
@@ -1687,7 +1703,11 @@ Tensor Tensor::MatMul(const Tensor& other) const
                     rhsIndices.push_back(n);
 
                     size_t lhsOffset = ComputeBroadcastOffset(lhsIndices);
-
+                    //Dikkat:
+					// batch=4 batchIndices = { 1,1 } iken ilk batch boyutu 1 dolayısıyla 
+					// A[1][1] matrisinin shape i {4,5} olur.
+                    // Fakat B tarafında B[1][1] in karşılığı yoktur ve 
+                    // ComputeBroadcastOffset içinde { 0,1 } olarak yorumlanır.
                     size_t rhsOffset = other.ComputeBroadcastOffset(rhsIndices);
 
                     sum += (*m_data)[lhsOffset] * (*other.m_data)[rhsOffset];
