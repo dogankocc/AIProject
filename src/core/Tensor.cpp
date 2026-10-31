@@ -1630,7 +1630,7 @@ Tensor Tensor::MatMul(const Tensor& other) const
     }
 	// Batch shape'leri ayır. 
     // Yani son iki boyutlar matris çarpımı için kullanılırken, diğer boyutlar batch olarak kabul edilir.
-    // A = {2,3,4,5}
+    // A = { 2,3,4,5 }
     // B = { 1,3,5,6 }
     //Adım 1 Önce batch ve matris kısımlarını ayırıyoruz :
     // A = { 2,3 | 4,5 }
