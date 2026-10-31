@@ -1704,9 +1704,11 @@ Tensor Tensor::MatMul(const Tensor& other) const
 
                     size_t lhsOffset = ComputeBroadcastOffset(lhsIndices);
                     //Dikkat:
-					// batch=4 batchIndices = { 1,1 } iken ilk batch boyutu 1 dolayısıyla 
+					// batch=4 batchIndices = { 1,1 } iken 
 					// A[1][1] matrisinin shape i {4,5} olur.
-                    // Fakat B tarafında B[1][1] in karşılığı yoktur ve 
+                    // Fakat B tarafında B[1][1] in karşılığı yoktur 
+                    // çünkü batchB = { 1,3 } dir yani ilk batch boyutu 1 dolayısıyla 
+					// B[1][1] olamaz. Bu yüzden B[1][1] aslında B[0][1] olarak yorunlanmalıdır.
                     // ComputeBroadcastOffset içinde { 0,1 } olarak yorumlanır.
                     size_t rhsOffset = other.ComputeBroadcastOffset(rhsIndices);
 
@@ -1723,7 +1725,10 @@ Tensor Tensor::MatMul(const Tensor& other) const
             }
         }
     }
-
+    /* NOT:
+       B = { 1,3,5,6 } demek B[1][3][5][6] demektir,
+       B[0][1] seçmek 5x6 lık matrislerden sadece birini seçmek demek olur.  
+    */
     return result;
 }
 
