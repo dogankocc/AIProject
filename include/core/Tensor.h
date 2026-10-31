@@ -180,6 +180,10 @@ public:
     Tensor Sum(size_t dim) const;
     Tensor Sum(size_t dim, bool keepDim) const;
 
+    float Prod() const;
+    Tensor Prod(size_t dim) const;
+    Tensor Prod(size_t dim, bool keepDim) const;
+
     float Mean() const;
     Tensor Mean(size_t dim, bool keepDim = false) const;
 
