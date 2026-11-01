@@ -16,16 +16,11 @@ public:
 
     Tensor();
 
-    explicit Tensor(
-        const Shape& shape);
+    explicit Tensor(const Shape& shape);
 
-    Tensor(
-        const Shape& shape,
-        float initialValue);
+    Tensor(const Shape& shape, float initialValue);
 
-    Tensor(
-        const Shape& shape,
-        const std::vector<float>& data);
+    Tensor(const Shape& shape, const std::vector<float>& data);
 
     // View constructor: aynı veriyi paylaş, farklı shape/strides
     Tensor(
@@ -35,11 +30,9 @@ public:
         size_t offset);
 
     // Factory methods
-    static Tensor Zeros(
-        const Shape& shape);
+    static Tensor Zeros(const Shape& shape);
 
-    static Tensor Ones(
-        const Shape& shape);
+    static Tensor Ones(const Shape& shape);
 
     static Tensor Random(
         const Shape& shape,
@@ -253,6 +246,34 @@ public:
     //Statistics / Preprocessing
 
     Tensor Normalize(size_t dim) const;
+
+    // Comparison Operations :
+    // 
+    // Tensor un her indisinde ki değere bakılır, value 'dan büyükse 1, küçükse 0 
+    // result Tensor ün ilgili indisine atanır.
+    Tensor Greater(float value) const;
+	// Tensor un her indisinde ki değere bakılır, value 'den küçükse 1, büyükse 0 
+    // result Tensor ün ilgili indisine atanır.
+    Tensor Less(float value) const;
+    Tensor Equal(float value) const;
+
+    Tensor Greater(const Tensor& other) const;
+    Tensor Less(const Tensor& other) const;
+    Tensor Equal(const Tensor& other) const;
+	//Her eleman için condition[i] bakılır ve condition[i] != 0 ise trueTensor[i] alınır, aksi halde falseTensor[i] alınır.
+    //Yani özünde:result = condition ? trueValue : falseValue; işi yapılıyor.
+    static Tensor Where(
+        const Tensor& condition,
+        const Tensor& trueTensor,
+        const Tensor& falseTensor);
+
+    // Mask 1 ise fillTensor'dan al, mask 0 ise original tensordan al
+    Tensor MaskedFill(const Tensor& mask, float value) const;
+    
+    // Mask'te seçilen elemanları filtreleyerek yeni bir tensor oluşturur.
+    Tensor MaskedSelect(const Tensor& mask) const;
+
+    Tensor Concat(const std::vector<Tensor>& tensors, size_t dim);
 private:
 
     // Bu nesnenin stride'ı ile offset hesapla
