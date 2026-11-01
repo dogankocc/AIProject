@@ -184,6 +184,21 @@ public:
     size_t ArgMin() const;
     Tensor ArgMin(size_t dim, bool keepDim = false) const;
 
+    Tensor Floor() const;
+    Tensor Ceil() const;
+    Tensor Round() const;
+
+    bool All() const;
+    bool Any() const;
+
+    // Bir eksendeki tüm elemanlar sıfırdan farklımı?
+    Tensor All(size_t dim) const;
+    Tensor All(size_t dim, bool keepDim) const;
+
+    //Bir eksende en az bir eleman sıfırdan farklı mı?
+    Tensor Any(size_t dim) const;
+    Tensor Any(size_t dim, bool keepDim) const;
+
     // Linear Algebra
     Tensor MatMul(const Tensor& other) const;
     // View: aynı veriyi paylaş, son iki ekseni yer değiştir
@@ -239,6 +254,8 @@ public:
     // min'den küçükse min yap, max'tan büyükse max yap, arada ise dokunma
     Tensor Clamp(float minValue, float maxValue) const;
 
+    Tensor ClampMin(float minValue) const;
+    Tensor ClampMax(float maxValue) const;
 public:
 
     std::string ToString() const;
@@ -252,14 +269,22 @@ public:
     // Tensor un her indisinde ki değere bakılır, value 'dan büyükse 1, küçükse 0 
     // result Tensor ün ilgili indisine atanır.
     Tensor Greater(float value) const;
+    Tensor GreaterEqual(float value) const;
+
 	// Tensor un her indisinde ki değere bakılır, value 'den küçükse 1, büyükse 0 
     // result Tensor ün ilgili indisine atanır.
     Tensor Less(float value) const;
+    Tensor LessEqual(float value) const;
     Tensor Equal(float value) const;
+    Tensor NotEqual(float value) const;
 
     Tensor Greater(const Tensor& other) const;
+    Tensor GreaterEqual(const Tensor& other) const;
     Tensor Less(const Tensor& other) const;
+    Tensor LessEqual(const Tensor& other) const;
     Tensor Equal(const Tensor& other) const;
+    Tensor NotEqual(const Tensor& other) const;
+
 	//Her eleman için condition[i] bakılır ve condition[i] != 0 ise trueTensor[i] alınır, aksi halde falseTensor[i] alınır.
     //Yani özünde:result = condition ? trueValue : falseValue; işi yapılıyor.
     static Tensor Where(
@@ -267,6 +292,8 @@ public:
         const Tensor& trueTensor,
         const Tensor& falseTensor);
 
+    Tensor Not() const;
+    
     // Mask 1 ise fillTensor'dan al, mask 0 ise original tensordan al
     Tensor MaskedFill(const Tensor& mask, float value) const;
     
@@ -277,6 +304,10 @@ public:
 
     // Her tensora yeni bir eksen ekle, Sonra onları Concat et
     static Tensor Stack(const std::vector<Tensor>& tensors, size_t dim);
+
+	// Verilen eksendeki, verilen indeksleri seçerek yeni bir tensor oluşturur.
+    Tensor IndexSelect(size_t dim, const Tensor& indices) const;
+
 private:
 
     // Bu nesnenin stride'ı ile offset hesapla

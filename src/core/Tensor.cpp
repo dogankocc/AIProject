@@ -1037,6 +1037,182 @@ Tensor Tensor::Clamp(float minValue, float maxValue) const
     return result;
 }
 
+Tensor Tensor::ClampMin(float minValue) const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::max((*this)[i], minValue);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::max(At(indices), minValue);
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::ClampMax(float maxValue) const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::min((*this)[i], maxValue);     
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::min(At(indices), maxValue);
+        }
+    }
+
+    return result;
+}
+
+bool Tensor::All() const
+{
+    for(size_t i = 0; i < Size(); ++i)
+    {
+        Shape indices = LinearToIndices(i);
+
+        if (At(indices) == 0.0f)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+Tensor Tensor::All(size_t dim) const
+{
+    if (dim >= Rank())
+    {
+        throw std::out_of_range("Invalid dimension.");
+    }
+
+    Shape resultShape = m_shape;
+
+    resultShape.erase(resultShape.begin() + dim);
+
+    Tensor result(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        Shape resultIndices = LinearToIndices(i, resultShape);
+
+        bool allTrue = true;
+
+        for (size_t k = 0; k < m_shape[dim]; ++k)
+        {
+            Shape srcIndices = resultIndices;
+
+            srcIndices.insert(srcIndices.begin() + dim, k);
+
+            if (At(srcIndices) == 0.0f)
+            {
+                allTrue = false;
+                break;
+            }
+        }
+
+        result.At(resultIndices) = allTrue ? 1.0f : 0.0f;
+    }
+
+    return result;
+}
+
+Tensor Tensor::All(size_t dim, bool keepDim) const
+{
+    Tensor result = All(dim);
+
+    if (!keepDim)
+    {
+        return result;
+    }
+
+    return result.Unsqueeze(dim);
+}
+
+bool Tensor::Any() const
+{
+    for (size_t i = 0; i < Size(); ++i)
+    {
+        Shape indices = LinearToIndices(i);
+
+        if (At(indices) != 0.0f)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+Tensor Tensor::Any(size_t dim) const
+{
+    if (dim >= Rank())
+    {
+        throw std::out_of_range("Invalid dimension.");
+    }
+
+    Shape resultShape = m_shape;
+
+    resultShape.erase(resultShape.begin() + dim);
+
+    Tensor result(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        Shape resultIndices = LinearToIndices(i, resultShape);
+
+        bool anyTrue = false;
+
+        for (size_t k = 0; k < m_shape[dim]; ++k)
+        {
+            Shape srcIndices = resultIndices;
+
+            srcIndices.insert(srcIndices.begin() + dim, k);
+
+            if (At(srcIndices) != 0.0f)
+            {
+                anyTrue = true;
+                break;
+            }
+        }
+
+        result.At(resultIndices) = anyTrue ? 1.0f : 0.0f;
+    }
+
+    return result;
+}
+
+Tensor Tensor::Any(size_t dim, bool keepDim) const
+{
+    Tensor result = Any(dim);
+
+    if (!keepDim)
+    {
+        return result;
+    }
+
+    return result.Unsqueeze(dim);
+}
+
 std::string Tensor::ToString() const
 {
     std::stringstream ss;
@@ -1627,6 +1803,78 @@ Tensor Tensor::ArgMin(size_t dim, bool keepDim) const
     return result;
 }
 
+Tensor Tensor::Floor() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::floor((*this)[i]);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::floor(At(indices));
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Ceil() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::ceil((*this)[i]);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::ceil(At(indices));
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::Round() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] = std::round((*this)[i]);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) = std::round(At(indices));
+        }
+    }
+
+    return result;
+}
+
 Tensor Tensor::Log() const
 {
     Tensor result(m_shape);
@@ -2122,6 +2370,36 @@ Tensor Tensor::Greater(float value) const
     return result;
 }
 
+Tensor Tensor::GreaterEqual(float value) const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] =
+                ((*this)[i] >= value)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) =
+                (At(indices) >= value)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+
+    return result;
+}
+
 Tensor Tensor::Less(float value) const
 {
     Tensor result(m_shape);
@@ -2152,6 +2430,36 @@ Tensor Tensor::Less(float value) const
     return result;
 }
 
+Tensor Tensor::LessEqual(float value) const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] =
+                ((*this)[i] <= value)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) =
+                (At(indices) <= value)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+
+    return result;
+}
+
 Tensor Tensor::Equal(float value) const
 {
     Tensor result(m_shape);
@@ -2174,6 +2482,36 @@ Tensor Tensor::Equal(float value) const
 
             result.At(indices) =
                 (At(indices) == value)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::NotEqual(float value) const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] =
+                ((*this)[i] != value)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) =
+                (At(indices) != value)
                 ? 1.0f
                 : 0.0f;
         }
@@ -2222,6 +2560,46 @@ Tensor Tensor::Greater(const Tensor& other) const
     return result;
 }
 
+Tensor Tensor::GreaterEqual(const Tensor& other) const
+{
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
+
+    Tensor result(resultShape);
+
+    if (AreBothContiguousAndSameShape(*this, other))
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] =
+                ((*this)[i] >= other[i])
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < result.Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i, resultShape);
+
+            size_t lhsOffset = ComputeBroadcastOffset(indices);
+
+            size_t rhsOffset = other.ComputeBroadcastOffset(indices);
+
+            float lhsValue = (*m_data)[lhsOffset];
+
+            float rhsValue = (*other.m_data)[rhsOffset];
+
+            result.At(indices) =
+                (lhsValue >= rhsValue)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+
+    return result;
+}
+
 Tensor Tensor::Less(const Tensor& other) const
 {
     Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
@@ -2262,6 +2640,46 @@ Tensor Tensor::Less(const Tensor& other) const
     return result;
 }
 
+Tensor Tensor::LessEqual(const Tensor& other) const
+{
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
+
+    Tensor result(resultShape);
+
+    if (AreBothContiguousAndSameShape(*this, other))
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] =
+                ((*this)[i] <= other[i])
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < result.Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i, resultShape);
+
+            size_t lhsOffset = ComputeBroadcastOffset(indices);
+
+            size_t rhsOffset = other.ComputeBroadcastOffset(indices);
+
+            float lhsValue = (*m_data)[lhsOffset];
+
+            float rhsValue = (*other.m_data)[rhsOffset];
+
+            result.At(indices) =
+                (lhsValue <= rhsValue)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+
+    return result;
+}
+
 Tensor Tensor::Equal(const Tensor& other) const
 {
     Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
@@ -2294,6 +2712,46 @@ Tensor Tensor::Equal(const Tensor& other) const
 
             result.At(indices) =
                 (lhsValue == rhsValue)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+
+    return result;
+}
+
+Tensor Tensor::NotEqual(const Tensor& other) const
+{
+    Shape resultShape = ComputeBroadcastShape(m_shape, other.m_shape);
+
+    Tensor result(resultShape);
+
+    if (AreBothContiguousAndSameShape(*this, other))
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] =
+                ((*this)[i] != other[i])
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < result.Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i, resultShape);
+
+            size_t lhsOffset = ComputeBroadcastOffset(indices);
+
+            size_t rhsOffset = other.ComputeBroadcastOffset(indices);
+
+            float lhsValue = (*m_data)[lhsOffset];
+
+            float rhsValue = (*other.m_data)[rhsOffset];
+
+            result.At(indices) =
+                (lhsValue != rhsValue)
                 ? 1.0f
                 : 0.0f;
         }
@@ -2345,6 +2803,36 @@ Tensor Tensor::Where(
             (conditionValue != 0.0f)
             ? (*trueTensor.m_data)[trueOffset]
             : (*falseTensor.m_data)[falseOffset];
+    }
+
+    return result;
+}
+
+Tensor Tensor::Not() const
+{
+    Tensor result(m_shape);
+
+    if (IsContiguous())
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            result[i] =
+                ((*this)[i] == 0.0f)
+                ? 1.0f
+                : 0.0f;
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < Size(); ++i)
+        {
+            Shape indices = LinearToIndices(i);
+
+            result.At(indices) =
+                (At(indices) == 0.0f)
+                ? 1.0f
+                : 0.0f;
+        }
     }
 
     return result;
@@ -2486,4 +2974,45 @@ Tensor Tensor::Stack(const std::vector<Tensor>& tensors, size_t dim)
     }
 
     return Concat(expanded, dim);
+}
+
+Tensor Tensor::IndexSelect(size_t dim, const Tensor& indices) const
+{
+    if (dim >= Rank())
+    {
+        throw std::out_of_range("Invalid dimension.");
+    }
+
+    if (indices.Rank() != 1)
+    {
+        throw std::invalid_argument("Indices tensor must be 1D.");
+    }
+
+    Shape resultShape = m_shape;
+
+    resultShape[dim] = indices.Size();
+
+    Tensor result(resultShape);
+
+    for (size_t i = 0; i < result.Size(); ++i)
+    {
+        Shape resultIndices = LinearToIndices(i, resultShape);
+
+        Shape sourceIndices = resultIndices;
+
+        size_t selectedIndex =
+            static_cast<size_t>(
+                indices.At({ resultIndices[dim] }));
+
+        if (selectedIndex >= m_shape[dim])
+        {
+            throw std::out_of_range("Index out of range.");
+        }
+
+        sourceIndices[dim] = selectedIndex;
+
+        result.At(resultIndices) = At(sourceIndices);
+    }
+
+    return result;
 }
