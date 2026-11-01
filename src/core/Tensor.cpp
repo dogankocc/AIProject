@@ -2401,20 +2401,16 @@ Tensor Tensor::Concat(const std::vector<Tensor>& tensors, size_t dim)
 {
     if (tensors.empty())
     {
-        throw std::invalid_argument(
-            "No tensors provided.");
+        throw std::invalid_argument("No tensors provided.");
     }
 
-    const Shape& baseShape =
-        tensors[0].GetShape();
+    const Shape& baseShape = tensors[0].GetShape();
 
-    const size_t rank =
-        baseShape.size();
+    const size_t rank = baseShape.size();
 
     if (dim >= rank)
     {
-        throw std::out_of_range(
-            "Invalid dimension.");
+        throw std::out_of_range("Invalid dimension.");
     }
 
     // Concat dışındaki tüm boyutlar eşit olmalı
@@ -2422,8 +2418,7 @@ Tensor Tensor::Concat(const std::vector<Tensor>& tensors, size_t dim)
     {
         if (tensor.Rank() != rank)
         {
-            throw std::invalid_argument(
-                "Rank mismatch.");
+            throw std::invalid_argument("Rank mismatch.");
         }
 
         for (size_t d = 0; d < rank; ++d)
@@ -2435,8 +2430,7 @@ Tensor Tensor::Concat(const std::vector<Tensor>& tensors, size_t dim)
 
             if (tensor.GetShape()[d] != baseShape[d])
             {
-                throw std::invalid_argument(
-                    "Shape mismatch.");
+                throw std::invalid_argument("Shape mismatch.");
             }
         }
     }
@@ -2448,33 +2442,28 @@ Tensor Tensor::Concat(const std::vector<Tensor>& tensors, size_t dim)
 
     for (const auto& tensor : tensors)
     {
-        resultShape[dim] +=
-            tensor.GetShape()[dim];
+        resultShape[dim] += tensor.GetShape()[dim];
     }
 
     Tensor result(resultShape);
 
+    //İlk tensoru kopyalarken, 0 çünkü henüz sonuç tensorunda bir şey kaydırmıyoruz.
     size_t concatOffset = 0;
 
     for (const auto& tensor : tensors)
     {
         for (size_t i = 0; i < tensor.Size(); ++i)
         {
-            Shape srcIndices =
-                tensor.LinearToIndices(i);
+            Shape srcIndices = tensor.LinearToIndices(i);
 
-            Shape dstIndices =
-                srcIndices;
+            Shape dstIndices = srcIndices;
 
-            dstIndices[dim] +=
-                concatOffset;
+            dstIndices[dim] += concatOffset;
 
-            result.At(dstIndices) =
-                tensor.At(srcIndices);
+            result.At(dstIndices) = tensor.At(srcIndices);
         }
-
-        concatOffset +=
-            tensor.GetShape()[dim];
+		// Sonraki tensoru kopyalamadan önce offset'i güncelle
+        concatOffset += tensor.GetShape()[dim];
     }
 
     return result;
