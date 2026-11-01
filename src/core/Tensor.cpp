@@ -2468,3 +2468,22 @@ Tensor Tensor::Concat(const std::vector<Tensor>& tensors, size_t dim)
 
     return result;
 }
+
+Tensor Tensor::Stack(const std::vector<Tensor>& tensors, size_t dim)
+{
+    if (tensors.empty())
+    {
+        throw std::invalid_argument("No tensors provided.");
+    }
+
+    std::vector<Tensor> expanded;
+
+    expanded.reserve(tensors.size());
+
+    for (const auto& tensor : tensors)
+    {
+        expanded.push_back(tensor.Unsqueeze(dim));
+    }
+
+    return Concat(expanded, dim);
+}

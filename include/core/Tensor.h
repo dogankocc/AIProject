@@ -273,7 +273,10 @@ public:
     // Mask'te seçilen elemanları filtreleyerek yeni bir tensor oluşturur.
     Tensor MaskedSelect(const Tensor& mask) const;
 
-    Tensor Concat(const std::vector<Tensor>& tensors, size_t dim);
+    static Tensor Concat(const std::vector<Tensor>& tensors, size_t dim);
+
+    // Her tensora yeni bir eksen ekle, Sonra onları Concat et
+    static Tensor Stack(const std::vector<Tensor>& tensors, size_t dim);
 private:
 
     // Bu nesnenin stride'ı ile offset hesapla
