@@ -111,15 +111,6 @@ public:
     // Deep copy: yeni ayrı veri bloğu, her zaman Contiguous
     Tensor Clone(CloneMode mode = CloneMode::Logical) const;
 
-    // View: aynı veriyi paylaş, son iki ekseni yer değiştir
-    // Sonuç: Contiguous OLMAYABILIR
-    Tensor Transpose() const;
-    
-    // İstenilen iki ekseni değiştir
-    Tensor Transpose(
-        size_t dim1,
-        size_t dim2) const;
-
     // Slice, seçilen bir boyuttaki belirli bir indeksi sabitler, o boyutu tensor'dan kaldırır ve aynı veriyi paylaşan yeni bir view tensor döndürür.
     // Örn. shape={2,3,4}, Slice(1,1) -> shape={2,4} (1. eksenin 1. indeksini sabitle)
 	// data ve offset aynı kalır, sadece shape ve strides değişir.
@@ -200,7 +191,15 @@ public:
     size_t ArgMin() const;
     Tensor ArgMin(size_t dim, bool keepDim = false) const;
 
+    // Linear Algebra
     Tensor MatMul(const Tensor& other) const;
+    // View: aynı veriyi paylaş, son iki ekseni yer değiştir
+    // Sonuç: Contiguous OLMAYABILIR
+    Tensor Transpose() const;
+    // İstenilen iki ekseni değiştir
+    Tensor Transpose(size_t dim1, size_t dim2) const;
+	//Identity matrisi sayıdaki 1 gibidir. Bu fonksiyon, n x n boyutunda birim (identity) matrisi oluşturur.
+    static Tensor Identity(size_t n);
 
 	//Unary işlemler
     Tensor Exp() const;

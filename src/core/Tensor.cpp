@@ -369,58 +369,6 @@ Tensor Tensor::Clone(CloneMode mode) const
     return result;
 }
 
-Tensor Tensor::Transpose(size_t dim1, size_t dim2) const
-{
-    if (!m_data)
-    {
-        return *this;
-    }
-
-    if (dim1 >= m_shape.size() ||
-        dim2 >= m_shape.size())
-    {
-        throw std::out_of_range(
-            "Transpose dimension out of range.");
-    }
-
-    if (dim1 == dim2)
-    {
-        return *this;
-    }
-
-    Shape newShape = m_shape;
-    std::swap(newShape[dim1],
-        newShape[dim2]);
-
-    Strides newStrides = m_strides;
-    std::swap(newStrides[dim1],
-        newStrides[dim2]);
-
-    return Tensor(
-        newShape,
-        newStrides,
-        m_data,
-        m_offset);
-}
-
-Tensor Tensor::Transpose() const
-{
-    if (m_shape.size() < 2 || !m_data)
-    {
-        return *this;
-    }
-
-    //Transpose kuralı: Son iki ekseni yer değiştir xT[i][j] = x[j][i]
-    Shape newShape = m_shape;
-    std::swap(newShape[newShape.size() - 1], newShape[newShape.size() - 2]);
-
-    Strides newStrides = m_strides;
-    std::swap(newStrides[newStrides.size() - 1], newStrides[newStrides.size() - 2]);
-
-	// Aynı veriyi paylaşan view oluştur, m_offset değişmez çünkü m_data değişmedi
-    return Tensor(newShape, newStrides, m_data, m_offset);
-}
-
 Tensor Tensor::Slice(size_t dim, size_t index) const
 {
     if (!m_data)
@@ -2076,5 +2024,69 @@ Tensor Tensor::MatMul(const Tensor& other) const
        B = { 1,3,5,6 } demek B[1][3][5][6] demektir,
        B[0][1] seçmek 5x6 lık matrislerden sadece birini seçmek demek olur.
     */
+    return result;
+}
+
+Tensor Tensor::Transpose(size_t dim1, size_t dim2) const
+{
+    if (!m_data)
+    {
+        return *this;
+    }
+
+    if (dim1 >= m_shape.size() ||
+        dim2 >= m_shape.size())
+    {
+        throw std::out_of_range(
+            "Transpose dimension out of range.");
+    }
+
+    if (dim1 == dim2)
+    {
+        return *this;
+    }
+
+    Shape newShape = m_shape;
+    std::swap(newShape[dim1],
+        newShape[dim2]);
+
+    Strides newStrides = m_strides;
+    std::swap(newStrides[dim1],
+        newStrides[dim2]);
+
+    return Tensor(
+        newShape,
+        newStrides,
+        m_data,
+        m_offset);
+}
+
+Tensor Tensor::Transpose() const
+{
+    if (m_shape.size() < 2 || !m_data)
+    {
+        return *this;
+    }
+
+    //Transpose kuralı: Son iki ekseni yer değiştir xT[i][j] = x[j][i]
+    Shape newShape = m_shape;
+    std::swap(newShape[newShape.size() - 1], newShape[newShape.size() - 2]);
+
+    Strides newStrides = m_strides;
+    std::swap(newStrides[newStrides.size() - 1], newStrides[newStrides.size() - 2]);
+
+    // Aynı veriyi paylaşan view oluştur, m_offset değişmez çünkü m_data değişmedi
+    return Tensor(newShape, newStrides, m_data, m_offset);
+}
+
+Tensor Tensor::Identity(size_t n)
+{
+    Tensor result({ n, n }, 0.0f);
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        result.At({ i, i }) = 1.0f;
+    }
+
     return result;
 }
