@@ -651,6 +651,64 @@ Tensor Tensor::operator+(const Tensor& other) const
         }
     }
 
+    //----------------------------------
+    // AutoGrad
+    //----------------------------------
+
+    if (m_requiresGrad || other.m_requiresGrad)
+    {
+        result.m_requiresGrad = true;
+        result.m_isLeaf = false;
+
+        result.m_node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+
+        result.m_node->operationName = "Add";
+
+        Tensor* lhs = const_cast<Tensor*>(this);
+
+        Tensor* rhs = const_cast<Tensor*>(&other);
+
+        result.m_node->parents.push_back(lhs);
+        result.m_node->parents.push_back(rhs);
+
+        result.m_node->backward = [lhs, rhs](Tensor& output)
+        {
+            //----------------------------------
+            // d(a+b)/da = 1
+            //----------------------------------
+
+            if (lhs->RequiresGrad())
+            {
+                if (!lhs->m_grad)
+                {
+                    lhs->m_grad =
+                        std::make_shared<Tensor>(
+                            Tensor::Zeros(
+                                lhs->GetShape()));
+                }
+
+                *(lhs->m_grad) += output.Grad();
+            }
+
+            //----------------------------------
+            // d(a+b)/db = 1
+            //----------------------------------
+
+            if (rhs->RequiresGrad())
+            {
+                if (!rhs->m_grad)
+                {
+                    rhs->m_grad =
+                        std::make_shared<Tensor>(
+                            Tensor::Zeros(
+                                rhs->GetShape()));
+                }
+
+                *(rhs->m_grad) += output.Grad();
+            }
+        };
+    }
+
     return result;
 }
 
@@ -3015,4 +3073,107 @@ Tensor Tensor::IndexSelect(size_t dim, const Tensor& indices) const
     }
 
     return result;
+}
+
+const Tensor& Tensor::Grad() const
+{
+    if (!m_grad)
+    {
+        throw std::runtime_error("Gradient not initialized.");
+    }
+
+    return *m_grad;
+}
+
+Tensor& Tensor::Grad()
+{
+    if (!m_grad)
+    {
+        throw std::runtime_error("Gradient not initialized.");
+    }
+
+    return *m_grad;
+}
+
+bool Tensor::RequiresGrad() const
+{
+    return m_requiresGrad;
+}
+
+void Tensor::SetRequiresGrad(bool value)
+{
+    m_requiresGrad = value;
+}
+
+bool Tensor::IsLeaf() const
+{
+    return m_isLeaf;
+}
+
+void Tensor::ZeroGrad()
+{
+    if (m_grad)
+    {
+        m_grad->Zero();
+    }
+}
+
+void Tensor::BuildTopo(
+    Tensor* tensor,
+    std::unordered_set<Tensor*>& visited,
+    std::vector<Tensor*>& topo)
+{
+    if (!tensor)
+    {
+        return;
+    }
+
+    if (visited.find(tensor) != visited.end())
+    {
+        return;
+    }
+
+    visited.insert(tensor);
+
+    if (tensor->m_node)
+    {
+        for (Tensor* parent : tensor->m_node->parents)
+        {
+            BuildTopo(
+                parent,
+                visited,
+                topo);
+        }
+    }
+
+    topo.push_back(tensor);
+}
+
+void Tensor::Backward()
+{
+    if (!m_requiresGrad)
+    {
+        return;
+    }
+
+    std::unordered_set<Tensor*> visited;
+
+    std::vector<Tensor*> topo;
+
+    BuildTopo(this, visited, topo);
+
+    if (!m_grad)
+    {
+        m_grad = std::make_shared<Tensor>(Tensor::Ones(m_shape));
+    }
+
+    for (auto it = topo.rbegin(); it != topo.rend(); ++it)
+    {
+        Tensor* tensor = *it;
+
+        if (tensor->m_node && tensor->m_node->backward)
+        {
+            tensor->m_node->backward(*tensor);
+        }
+    }
 }

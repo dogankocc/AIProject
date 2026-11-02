@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <unordered_set>
+#include "autograd/AutogradNode.h"
 
 class Tensor
 {
@@ -326,6 +328,24 @@ private:
     // batch boyutları üzerinde broadcast uygula ilgili matrisin başlangıç adresini döndür.
     size_t ComputeBatchBroadcastOffset(const Shape& batchIndices, const Shape& resultBatchShape) const;
 
+//AutoGrad için gerekli olan fonksiyonlar
+public:
+
+    const Tensor& Grad() const;
+    Tensor& Grad();
+
+    bool RequiresGrad() const;
+    void SetRequiresGrad(bool value);
+
+    bool IsLeaf() const;
+    void ZeroGrad();
+    void Backward();
+private:
+    static void BuildTopo(
+        Tensor* tensor,
+        std::unordered_set<Tensor*>& visited,
+        std::vector<Tensor*>& topo);
+
 private:
 	// Tensorun görünüşü Ör.{2,3,4} demek 3boyutlu bir array, 0. boyut 2 elemanlı, 1. boyut 3 elemanlı, 2. boyut 4 elemanlı demektir 
     Shape m_shape;
@@ -336,4 +356,10 @@ private:
 	// Mantıksal veri(Shape)'den seçilen bir elemanın, gerçek veri(m_data) üzerindeki konumu
     // gerçek veri üzerindeki  View'lar farklı offset ile aynı ham veriyi paylaşabilir.
     size_t m_offset; 
+
+	//AutoGrad için gerekli olan değişkenler
+    std::shared_ptr<Tensor> m_grad;
+    bool m_requiresGrad;
+    bool m_isLeaf;
+    std::shared_ptr<Tinynn::Autograd::AutogradNode> m_node;
 };

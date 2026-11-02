@@ -11,6 +11,7 @@ project ("AIProject")
 set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/core/Tensor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/autograd/AutogradNode.cpp"
 )
 
 # Executable oluştur
