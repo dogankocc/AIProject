@@ -346,6 +346,10 @@ private:
         std::unordered_set<Tensor*>& visited,
         std::vector<Tensor*>& topo);
 
+    static Tensor ReduceBroadcastGradient(
+        const Tensor& gradient,
+        const Shape& originalShape);
+
 private:
 	// Tensorun görünüşü Ör.{2,3,4} demek 3boyutlu bir array, 0. boyut 2 elemanlı, 1. boyut 3 elemanlı, 2. boyut 4 elemanlı demektir 
     Shape m_shape;

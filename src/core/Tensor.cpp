@@ -743,6 +743,60 @@ Tensor Tensor::operator-(const Tensor& other) const
         }
     }
 
+    if (m_requiresGrad || other.m_requiresGrad)
+    {
+        result.m_requiresGrad = true;
+        result.m_isLeaf = false;
+
+        result.m_node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+
+        result.m_node->operationName = "Sub";
+
+        Tensor* lhs = const_cast<Tensor*>(this);
+
+        Tensor* rhs = const_cast<Tensor*>(&other);
+
+        result.m_node->parents.push_back(lhs);
+        result.m_node->parents.push_back(rhs);
+
+        result.m_node->backward = [lhs, rhs](Tensor& output)
+        {
+            if (lhs->RequiresGrad())
+            {
+                if (!lhs->m_grad)
+                {
+                    lhs->m_grad =
+                        std::make_shared<Tensor>(
+                            Tensor::Zeros(
+                                lhs->GetShape()));
+                }
+                Tensor lhsGradient = Tensor::ReduceBroadcastGradient(
+                    output.Grad(),
+                    lhs->GetShape());
+
+                *(lhs->m_grad) += lhsGradient;
+            }
+
+            if (rhs->RequiresGrad())
+            {
+                if (!rhs->m_grad)
+                {
+                    rhs->m_grad =
+                        std::make_shared<Tensor>(
+                            Tensor::Zeros(
+                                rhs->GetShape()));
+                }
+                Tensor rhsGradient = Tensor::ReduceBroadcastGradient(
+                    output.Grad(),
+                    rhs->GetShape());
+
+                rhsGradient *= -1.0f;
+
+                *(rhs->m_grad) += rhsGradient;
+            }
+        };
+    }
+
     return result;
 }
 
@@ -776,7 +830,62 @@ Tensor Tensor::operator*(const Tensor& other) const
             result.At(indices) = lhsValue * rhsValue;
         }
     }
+    //----------------------------------
+    // AutoGrad
+    //----------------------------------
 
+    if (m_requiresGrad || other.m_requiresGrad)
+    {
+        result.m_requiresGrad = true;
+        result.m_isLeaf = false;
+
+        result.m_node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+
+        result.m_node->operationName = "Mul";
+
+        Tensor* lhs = const_cast<Tensor*>(this);
+        Tensor* rhs = const_cast<Tensor*>(&other);
+
+        result.m_node->parents.push_back(lhs);
+        result.m_node->parents.push_back(rhs);
+
+        result.m_node->backward = [lhs, rhs](Tensor& output)
+        {
+            //----------------------------------
+            // d(a * b) / da = b
+            //----------------------------------
+
+            if (lhs->RequiresGrad())
+            {
+                if (!lhs->m_grad)
+                {
+                    lhs->m_grad =
+                        std::make_shared<Tensor>(
+                            Tensor::Zeros(lhs->GetShape()));
+                }
+
+                *(lhs->m_grad) +=
+                    output.Grad() * (*rhs);
+            }
+
+            //----------------------------------
+            // d(a * b) / db = a
+            //----------------------------------
+
+            if (rhs->RequiresGrad())
+            {
+                if (!rhs->m_grad)
+                {
+                    rhs->m_grad =
+                        std::make_shared<Tensor>(
+                            Tensor::Zeros(rhs->GetShape()));
+                }
+
+                *(rhs->m_grad) +=
+                    output.Grad() * (*lhs);
+            }
+        };
+    }
     return result;
 }
 
@@ -3123,15 +3232,10 @@ void Tensor::BuildTopo(
     std::unordered_set<Tensor*>& visited,
     std::vector<Tensor*>& topo)
 {
-    if (!tensor)
-    {
-        return;
-    }
+    if (!tensor) return;
 
     if (visited.find(tensor) != visited.end())
-    {
         return;
-    }
 
     visited.insert(tensor);
 
@@ -3139,10 +3243,7 @@ void Tensor::BuildTopo(
     {
         for (Tensor* parent : tensor->m_node->parents)
         {
-            BuildTopo(
-                parent,
-                visited,
-                topo);
+            BuildTopo(parent, visited, topo);
         }
     }
 
@@ -3152,9 +3253,7 @@ void Tensor::BuildTopo(
 void Tensor::Backward()
 {
     if (!m_requiresGrad)
-    {
         return;
-    }
 
     std::unordered_set<Tensor*> visited;
 
@@ -3176,4 +3275,43 @@ void Tensor::Backward()
             tensor->m_node->backward(*tensor);
         }
     }
+}
+
+Tensor Tensor::ReduceBroadcastGradient(
+    const Tensor& gradient,
+    const Shape& originalShape)
+{
+    // Sonuç Tensor'ünü orijinal shape ile oluştur.
+    Tensor result = Tensor::Zeros(originalShape);
+
+    const Shape& gradientShape = gradient.GetShape();
+
+    // Broadcasting sırasında eklenen baştaki boyut sayısı.
+    size_t rankDiff = gradientShape.size() - originalShape.size();
+
+    // Genişletilmiş gradient içerisindeki tüm elemanları dolaş.
+    for (size_t i = 0; i < gradient.Size(); ++i)
+    {
+        Shape gradientIndices = gradient.LinearToIndices(i);
+
+        // Orijinal Tensor'ün indekslerini oluştur.
+        Shape originalIndices(originalShape.size(), 0);
+
+        for (size_t dim = 0; dim < originalShape.size(); ++dim)
+        {
+            size_t gradientDim = dim + rankDiff;
+
+            // Orijinal boyut 1 ise broadcast edilmiş demektir.
+            // Bu eksendeki tüm gradient değerleri toplanacak.
+            if (originalShape[dim] != 1)
+            {
+                originalIndices[dim] = gradientIndices[gradientDim];
+            }
+        }
+
+        // Aynı orijinal indekse denk gelen gradient katkılarını topla.
+        result.At(originalIndices) += gradient.At(gradientIndices);
+    }
+
+    return result;
 }
