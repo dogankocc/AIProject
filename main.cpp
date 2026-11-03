@@ -164,7 +164,7 @@ int main()
 	//std::cout << "a.grad = " << a.Grad()[0] << std::endl;
 	//std::cout << "b.grad = " << b.Grad()[0] << std::endl;
 
-	Tensor a(
+	/*Tensor a(
 		Tensor::Shape{ 2 },
 		std::vector<float>{10.0f, 20.0f}
 	);
@@ -177,6 +177,23 @@ int main()
 	a.SetRequiresGrad(true);
 	b.SetRequiresGrad(true);
 
+	Tensor c = a - b;
+	c.Backward();
+	std::cout << "c = " << c[0] << std::endl;
+	std::cout << "a.grad = " << a.Grad()[0] << std::endl;
+	std::cout << "b.grad = " << b.Grad()[0] << std::endl;
+	*/
+
+	Tensor a(
+		Tensor::Shape{ 2, 3 },
+		std::vector<float>{1, 1, 1, 1, 1, 1});
+
+	Tensor b(
+		Tensor::Shape{ 3 },
+		std::vector<float>{2, 4, 5});
+
+	a.SetRequiresGrad(true);
+	b.SetRequiresGrad(true);
 	Tensor c = a - b;
 	c.Backward();
 	std::cout << "c = " << c[0] << std::endl;
