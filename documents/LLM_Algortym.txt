@@ -1,0 +1,710 @@
+
+
+LLM Öğrenme Notları - Bölüm 1
+1. Büyük Resim
+
+Bir LLM'in yaptığı iş aslında çok basittir:
+
+Metin
+↓
+Tahmin
+↓
+Hata Hesabı (Loss)
+↓
+Öğrenme (Gradient)
+↓
+Ağırlıkları Güncelle (AdamW)
+↓
+Tekrar Tahmin
+
+Bu süreç milyonlarca kez tekrar edilir.
+
+2. Token Nedir?
+
+Model metni doğrudan anlamaz.
+
+Örneğin:
+
+"Ben okula gittim"
+
+önce tokenize edilir:
+
+[15, 842, 391]
+
+Bunlara token denir.
+
+Vocab:
+Modelin kullanabileceği semboller kümesi
+Embedding:
+Sembollerin sürekli uzaydaki temsili
+Hidden Size:
+Modelin asıl düşündüğü uzayın boyutu
+
+3. Vocab Nedir?
+
+Modelin tanıdığı token sayısıdır.
+Vocab, modelin anlayabileceği semboller evrenidir; hidden space ise modelin gerçekten "düşündüğü" uzaydır.
+
+Bu bakış açısı ileride embedding, attention ve FFN'i daha kolay anlamanı sağlar çünkü transformer aslında tokenlar üzerinde değil, tokenların hidden uzaydaki vektörleri üzerinde işlem yapar.
+
+Tokenizer'ın görevi:
+
+Metin
+↓
+Token
+↓
+Token ID
+dönüşümünü yapmakdır.
+"Tanımak" dediğimiz şey de:
+Bu tokenın sözlükte bir ID karşılığı bulunması anlamına geliyor.
+Yani Vocab Metni sayılara çevirmek için kullanılan token-ID eşleştirme tablosudur.
+
+Örneğin:
+
+Vocab = 3072
+
+ise:
+
+3072 farklı token
+
+tanıyabilir.
+
+Örnek:
+
+0 -> [PAD]
+1 -> [BOS]
+2 -> ben
+3 -> sen
+4 -> okul
+
+4. Embedding Nedir?
+
+Tokenlar modele doğrudan verilmez.
+
+Örneğin:
+
+Token 2 = "ben"
+
+önce vektöre çevrilir:
+
+[0.12, -0.77, 0.34, ...]
+
+Bu vektörün uzunluğu:
+
+Hidden Size kadardır.
+
+5. Hidden Size Nedir?
+
+Örneğin:
+
+Hidden = 256 ise:
+
+Her token model içinde:
+
+256 sayı ile temsil edilir.
+
+Yani model için:
+
+"ben" aslında: [256 sayı] demektir.
+
+6. Layer Nedir?
+
+Layer = Transformer Bloğu
+
+Örneğin:
+
+Layer = 12
+
+ise:
+
+Transformer Blok 1
+Transformer Blok 2
+...
+Transformer Blok 12
+
+vardır.
+
+7. Transformer Bloğu Nedir?
+
+Bir Transformer Bloğu:
+
+Giriş
+↓
+Attention
+↓
+FFN
+↓
+Çıkış
+
+şeklinde çalışır.
+
+8. Attention Nedir?
+
+Attention şu soruya cevap verir:
+
+Hangi tokenlara dikkat etmeliyim?
+
+Örnek:
+
+Ali okula gitti çünkü o...
+
+burada: "o" kelimesi: "Ali" ile ilişkilendirilebilir.
+
+Attention bu ilişkileri öğrenir.
+
+9. Head Nedir?
+
+Model bir ilişkiye tek açıdan bakmaz.
+
+Örneğin:
+
+Head 1 -> kişi ilişkileri
+ 
+Head 2 -> zaman ilişkileri
+ 
+Head 3 -> dil bilgisi
+
+gibi düşünülebilir.
+
+Bu yüzden:
+
+Head = farklı dikkat perspektifi olarak düşünülebilir.
+
+10. KV Head Nedir?
+
+Normalde her head'in kendi:
+
+K
+V
+
+matrisleri vardır.
+
+GQA'da ise:
+
+Birden fazla head
+↓
+Aynı KV bilgisini paylaşır
+
+Amaç:
+
+Daha az RAM kullanmak
+
+11. FFN Nedir?
+
+FFN:
+
+Feed Forward Network demektir.
+
+Ama mantığı:
+
+Attention bilgiyi toplar FFN bilgi üzerinde düşünür şeklindedir.
+
+12. FFN Neden Var?
+
+Attention sadece: hangi bilgi önemli sorusunu çözer.
+
+FFN ise:
+
+bu bilgilerden hangi yeni anlamları çıkarabilirim sorusunu çözer.
+
+13. FFN = 3072 Ne Demek?
+
+Örneğin:
+
+Hidden = 256
+FFN = 3072
+
+olsun.
+
+Bu:
+
+256
+↓
+3072
+↓
+256
+
+anlamına gelir.
+
+Dikkat:
+
+3072 token değildir.
+3072 sequence değildir.
+3072 vocab değildir.
+
+Sadece FFN'in içindeki ara çalışma boyutudur.
+
+14. FFN Matematiksel Olarak Ne Yapıyor?
+
+İlk adım:
+
+256 → 3072
+
+genişletir.
+
+Yani:
+
+Az sayıdaki özelliği
+çok sayıda yeni özelliğe dönüştürür.
+
+Örneğin:
+
+İnsan
++
+Erkek
++
+Özne
+
+sinyallerinden:
+
+Erkek İnsan Öznesi
+
+gibi yeni özellikler oluşturabilir.
+
+Daha sonra:
+
+3072 → 256
+
+ile tekrar sıkıştırır.
+
+Ama bu sırada önemli örüntüler korunur.
+
+15. Loss Nedir?
+
+Loss:
+
+Ne kadar hata yaptım?
+Daha fazla satır göster
+
+sorusunun cevabıdır.
+
+Örneğin:
+
+Doğru cevap:
+
+okula
+
+olsun.
+
+Model:
+
+eve
+
+demiş olsun.
+
+Loss yükselir.
+
+Ama:
+
+okula
+
+derse:
+
+Loss düşer.
+
+16. Loss Ne Kadar Olmalı?
+
+Rastgele model:
+
+Loss ≈ ln(vocab)
+
+seviyesindedir.
+
+Örneğin:
+
+Vocab ≈ 3000
+
+ise:
+
+Loss ≈ 8
+
+civarında başlar.
+
+Kabaca:
+
+8+ → çok kötü
+ 
+6 → öğreniyor
+ 
+4 → iyi
+ 
+2 → çok iyi
+
+17. Gradient Nedir?
+
+Model hata yaptığında sorar:
+
+Bu hataya hangi ağırlık sebep oldu?
+
+Cevap:
+
+Gradient
+
+Örneğin:
+
+Weight A -> çok suçlu
+ 
+Weight B -> az suçlu
+
+gibi.
+
+Matematiksel olarak:
+
+∂Loss / ∂Weight
+
+hesaplanır.
+
+18. Backpropagation Nedir?
+
+Gradientlerin geriye yayılmasıdır.
+
+Akış:
+
+Loss
+↓
+Çıkış Katmanı
+↓
+FFN
+↓
+Attention
+↓
+Embedding
+
+şeklinde geri gider.
+
+19. AdamW Nedir?
+
+Gradient bulundu.
+
+Şimdi ağırlıkları düzeltmek gerekiyor.
+
+AdamW bunu yapar.
+
+Mantığı:
+
+Sadece bugünkü hataya bakma
+ 
+Geçmiş öğrenmeleri de dikkate al
+
+şeklindedir.
+
+20. Eğitim Döngüsünün Tamamı
+
+Metin
+ 
+↓
+ 
+Tokenizer
+ 
+↓
+ 
+Tokenlar
+ 
+↓
+ 
+Embedding
+ 
+↓
+ 
+Transformer Blokları
+ 
+Attention
+↓
+FFN
+ 
+↓
+ 
+Tahmin
+ 
+↓
+ 
+Loss
+ 
+↓
+ 
+Gradient
+ 
+↓
+ 
+AdamW
+ 
+↓
+ 
+Yeni Ağırlıklar
+ 
+↓
+ 
+Sonraki Eğitim Adımı
+
+Adım 1: FFN'e giriş
+
+Attention'dan çıkmış bir token düşünelim.
+
+Örneğin:
+
+Plain Text
+x =[0.5, -0.2, 0.8]
+
+Gerçekte 256 sayı olacak ama kolaylık olsun diye 3 kullanalım.
+
+Adım 2: İlk genişletme
+
+FFN'in ilk ağırlık matrisi: W1 olsun.
+
+Boyutu: 3 × 5 olsun.
+
+Örnek:
+
+W1 = 
+[ 1 2 0 1 -1 ]
+[ 0 1 2 1 0 ]
+[ 1 0 1 -1 2 ]
+
+h = x × W1 hesaplıyoruz.
+
+Matris çarpımı:
+
+İlk sütun:
+0.5×1
++
+(-0.2)×0
++
+0.8×1
+=
+1.3
+
+İkinci sütun:
+0.5×2
++
+(-0.2)×1
++
+0.8×0
+=
+0.8
+
+Devam edersek:
+
+h =[1.3, 0.8, 0.4, -0.5, 1.1]
+
+çıkar.
+
+Burada ne oldu?
+
+Başlangıçta:
+
+Plain Text
+3 özellik
+Daha fazla satır göster
+
+vardı.
+
+Şimdi:
+
+Plain Text
+5 özellik
+Daha fazla satır göster
+
+oluştu.
+
+Gerçekte:
+
+Plain Text
+256 özellik
+↓
+3072 özellik
+
+oluyor.
+
+Bu yeni özellikler ne?
+
+Düşün:
+
+Plain Text
+Özellik 1 = İnsan
+ 
+Özellik 2 = Erkek
+ 
+Özellik 3 = Özne
+Daha fazla satır göster
+
+olsun.
+
+W1 bunların kombinasyonlarını üretir.
+
+Mesela:
+
+Yeni Özellik 412
+ 
+=
+0.3×İnsan
++
+0.8×Erkek
++
+0.1×Özne
+
+olabilir.
+
+Yani FFN yeni kavramlar yaratıyor.
+
+Adım 3: Aktivasyon (SiLU)
+
+Şimdi:
+
+Plain Text
+[1.3, 0.8, 0.4, -0.5, 1.1]
+
+çıktısını doğrudan kullanmıyoruz.
+
+SiLU uyguluyoruz.
+
+Formül: SiLU(x) = x × sigmoid(x)
+
+Sigmoid: sigmoid(x) = 1 / (1 + e^-x)
+
+Mesela:
+
+x = 1.3
+
+olsun.
+
+Önce sigmoid:
+
+1 / (1 + e^-1.3)
+ 
+≈ 0.785
+
+Sonra:
+
+SiLU(1.3) = 1.3 × 0.785
+ 
+≈ 1.02
+
+Negatif değer için:
+
+x = -0.5
+
+Sigmoid:
+
+≈ 0.377
+
+SiLU:
+
+-0.5 × 0.377
+ 
+≈ -0.19
+
+Yani:
+
+Pozitif sinyaller
+↓
+Daha güçlü geçiyor
+ 
+Negatif sinyaller
+↓
+Zayıflatılıyor
+
+Adım 4: Tekrar küçültme
+
+Şimdi tekrar 256 boyuta iniyoruz.
+
+İkinci ağırlık matrisi: W2 olsun.
+
+Boyutu: 5 × 3
+
+Hesap:
+
+out = h × W2
+
+Sonuç yine:
+
+[3 sayı]
+
+olur.
+
+Gerçekte:
+
+3072 sayı
+↓
+256 sayı
+
+oluyor.
+
+Gerçek LLM'de Olan
+
+Bir token:
+
+Plain Text
+[256 sayı]
+
+olarak geliyor.
+
+FFN:
+
+256 × 3072
+
+matrisi ile işler.
+
+Bu matriste:
+
+786.432
+
+ağırlık vardır.
+
+Sonra:
+
+3072 × 256
+
+matrisi gelir.
+
+Bunda da:
+
+786.432
+
+ağırlık vardır.
+
+Yani FFN'de toplam:
+
+~1.6 milyon
+
+ağırlık oluşur.
+
+SwiGLU varsa yaklaşık:
+
+~2.4 milyon
+
+olur.
+
+Bu yüzden parametrelerin çoğu FFN'dedir.
+
+Sezgisel Olarak Matematiğin Anlamı
+
+Şu işlemi gör:
+
+256 → 3072
+
+Bu aslında:
+
+Elimdeki 256 özelliğin milyonlarca farklı kombinasyonunu oluştur.
+
+demek.
+
+Sonra:
+
+3072 → 256
+
+ise:
+
+Bu kombinasyonlardan işe yarayanları seç ve tekrar standart boyuta indir.
+
+demek.
+
+O yüzden FFN'i matematiksel olarak şöyle düşünebilirsin:
+
+Attention:
+"Hangi bilgi önemli?"
+ 
+FFN:
+"Bu bilgilerden hangi yeni özellikleri türetebilirim?"
+
+İşin özünde FFN, devasa matris çarpımlarıyla özellik kombinasyonları üretip bunları doğrusal olmayan (SiLU) bir fonksiyonla dönüştüren ve sonra tekrar sıkıştıran bir yapı.
+Transformer'ın "öğrendiği bilgilerin" çok büyük kısmı da bu matrislerdeki ağırlıklara gömülü durumda.

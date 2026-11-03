@@ -3392,8 +3392,8 @@ void Tensor::Backward()
 }
 
 Tensor Tensor::ReduceBroadcastGradient(
-    const Tensor& gradient,
-    const Shape& originalShape)
+	const Tensor& gradient,// Genişletilmiş broadcast edilmiş Tensor
+	const Shape& originalShape)// Orijinal Tensor'ün shape'i
 {
     // Sonuç Tensor'ünü orijinal shape ile oluştur.
     Tensor result = Tensor::Zeros(originalShape);
@@ -3413,6 +3413,7 @@ Tensor Tensor::ReduceBroadcastGradient(
 
         for (size_t dim = 0; dim < originalShape.size(); ++dim)
         {
+            // Orijinal Tensor'deki bir eksenin, gradient Tensor'ünde hangi eksene karşılık geldiğini bul
             size_t gradientDim = dim + rankDiff;
 
             // Orijinal boyut 1 ise broadcast edilmiş demektir.

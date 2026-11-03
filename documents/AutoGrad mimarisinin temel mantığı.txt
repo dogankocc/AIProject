@@ -1,0 +1,443 @@
+ AutoGrad mimarisinin temel mantığı
+
+ --------------------------------------Forward--------------------------------------
+ 
+Önce şu matematiksel örneği düşün:
+
+a=2,\quad b=3
+
+c=a*b
+
+d=c+a
+
+L=d^2
+
+Burada L bizim loss değerimiz olsun.
+
+İşlemler sonucunda:
+
+c=6
+
+d=8
+
+L=64
+
+Bizim asıl istediğimiz şey, L değerinin a ve b değerlerine göre nasıl değiştiğini hesaplamak:
+
+ L \ a = ?
+
+ L \ b = ?
+
+Bu hesabı geriye doğru yapıyoruz. AutoGrad'ın temelinde Chain Rule (zincir kuralı) var.
+İşlemlerin birbirine bağımlılığını kaydetmemiz gerekiyor. İşte AutogradNode ve BuildTopo bunun için var.
+
+ BuildTopo() ne yapıyor?
+
+void Tensor::BuildTopo(
+    Tensor* tensor,
+    std::unordered_set<Tensor*>& visited,
+    std::vector<Tensor*>& topo)
+{
+    if (!tensor)
+    {
+        return;
+    }
+
+    if (visited.find(tensor) != visited.end())
+    {
+        return;
+    }
+
+    visited.insert(tensor);
+
+    if (tensor->m_node)
+    {
+        for (Tensor* parent : tensor->m_node->parents)
+        {
+            BuildTopo(
+                parent,
+                visited,
+                topo);
+        }
+    }
+
+    topo.push_back(tensor);
+}
+
+A) visited neden var?
+
+Aynı Tensor'a birden fazla yoldan ulaşılabilir.
+Örneğin:
+
+c=a*b
+
+d=c+a
+
+a, hem c üzerinden hem de doğrudan d üzerinden L'ye ulaşır.
+
+visited, a Tensor'unu iki defa dolaşmamızı engeller.
+
+B) Neden önce parent'ları dolaşıyoruz?
+
+Bir Tensor'un parent'ları, o Tensor'u oluşturan işlemin girdileridir.
+
+Örneğin:
+a ----\
+       Multiply ---> c
+b ----/
+
+c Tensor'unun parent'ları a ve b'dir.
+
+BuildTopo(c) çağrıldığında önce a ve b dolaşılır, sonra c listeye eklenir.
+
+C) topo.push_back(tensor) neden en sonda?
+
+Çünkü parent'lar listeye eklenmeden child eklenirse, sıralama istediğimiz gibi olmaz.
+
+Örneğin graph:
+
+a ----\
+       Multiply ---> c ----\
+b ----/                    \
+                            Add ---> d
+a -------------------------/
+
+BuildTopo(d) çalıştığında sonuç yaklaşık olarak:
+
+[a, b, c, d]
+
+Bu, ileri yöndeki topolojik sıralamadır.
+
+Yani:
+- a ve b önce gelir.
+- c, kendisini oluşturan a ve b'den sonra gelir.
+- d, c ve a'dan sonra gelir.
+
+--------------------------------------Backward--------------------------------------
+
+Peki backward'da neden L=64 üzerinden başlıyoruz?
+
+Çünkü sorumuz artık şu:
+
+L değerinin değişmesine a ve b ne kadar etki ediyor?
+
+İlk olarak yalnızca kare alma işlemini anlayalım
+
+L=d^2
+
+d=8
+
+L=64
+
+Şimdi d değerini biraz değiştirdiğimizi düşün.
+d	L = d²
+7	49
+8	64
+9	81
+
+Buradan şu sezgiyi kazanabilirsin:
+
+d 8'den 9'a çıkarsa, L 64'ten 81'e çıkıyor. Yani d'deki 1 birimlik artış, L'de 17 birimlik artış oluşturuyor.
+
+Ama matematiksel olarak tam değişim oranını türev hesaplar:
+
+----------------------------Türev----------------------------------
+Türev almak aslında şu soruyu sormaktır:
+
+"x'i çok az değiştirirsem sonuç ne kadar değişir?"
+
+Matematiksel tanımı:
+
+f′(x) = 	f(x+h)−f(x) / h
+		lim
+		h→0 
+
+Ama pratikte bu limiti her seferinde hesaplamayız. Türev kurallarını kullanırız.
+
+Sabitin türevi:
+f(x)=5 => f′(x)=0 olur.
+Çünkü x değişse bile sonuç hep 5
+
+Kuvvet kuralı: f(x)=x^n => f′(x)=n⋅x^n−1 olur.
+Örnekler:
+x^2 -> 2x
+x^3 -> 3x^2
+x^4 -> 4x^3
+x^10 -> 10x^9
+
+Toplama ve çıkarma:
+Her terimin türevi ayrı alınır.
+
+f(x)=x^2+3x+5 => f′(x)=2x+3+0 olur.
+
+Örnek hesap
+f(x)=x^2
+
+Türevi:
+f′(x)=2x
+
+Şimdi x=3 için:
+
+f′(3)=2⋅3=6
+
+Bu ne demek?
+x=3 noktasında x'i çok küçük bir miktar artırırsan sonuç yaklaşık 6 kat daha hızlı değişir.
+
+Çarpım Kuralı:
+İki fonksiyon çarpılıyorsa:
+	f(x)=u(x)⋅v(x)
+Türevi: 
+	f′(x)=u′(x)v(x) + u(x)v′(x)
+Yani, birincinin türevi × ikinci + birinci × ikincinin türevi
+
+Bölüm Kuralı:
+İki fonksiyon bölünüyorsa:
+f(x)=v(x)/u(x)​
+Türevi:
+f′(x)= u′(x).v(x) − u(x).v′(x)​ / v(x)^2
+
+----------------------------Türev----------------------------------
+
+Burada Önemli Olan:
+
+Forward sırasında değerleri hesaplıyoruz: 6, 8, 64.
+
+Backward sırasında değişim oranlarını hesaplıyoruz: 1, 16, 48, 32.
+
+Aynı Tensor nesnesi hem değerini hem de gradient'ini taşır.
+
+Backward() nasıl çalışıyor?
+
+void Tensor::Backward()
+{
+    if (!m_requiresGrad)
+    {
+        return;
+    }
+
+    std::unordered_set<Tensor*> visited;
+
+    std::vector<Tensor*> topo;
+
+    BuildTopo(this, visited, topo);
+
+    if (!m_grad)
+    {
+        m_grad = std::make_shared<Tensor>(Tensor::Ones(m_shape));
+    }
+
+    for (auto it = topo.rbegin(); it != topo.rend(); ++it)
+    {
+        Tensor* tensor = *it;
+
+        if (tensor->m_node && tensor->m_node->backward)
+        {
+            tensor->m_node->backward();
+        }
+    }
+}
+
+Önce hesaplama sırasını oluşturuyor
+
+A) BuildTopo(this, visited, topo);
+
+Örneğimizde:
+
+topo = [a, b, c, d, L]
+
+B) Loss gradient'ini başlatıyor
+
+if (!m_grad)
+{
+    m_grad = std::make_shared<Tensor>(Tensor::Ones(m_shape));
+}
+
+Bu, AutoGrad'ın en önemli kavramlarından biri.
+
+Eğer L skaler bir Tensor ise:
+
+başlangıç gradient'imiz:
+
+L.grad = 1
+
+Çünkü bir değerin kendisine göre türevi 1 dir.
+
+Bu başlangıç değeri, geriye doğru gradient hesaplamasının çıkış noktası.
+
+C) Topolojik sırayı tersine çeviriyor
+
+for (auto it = topo.rbegin(); it != topo.rend(); ++it)
+
+Bu ifade listenin sonundan başına doğru dolaşır.
+
+topo:
+[a, b, c, d, L]
+
+Ters sıralama:
+[L, d, c, b, a]
+
+Neden ters?
+
+Çünkü forward işlemler:
+
+a,b -> c -> d -> L
+
+Backward işlemler:
+
+L -> d -> c -> a,b
+
+Callback:
+tensor->m_node->backward();
+
+işte o Tensor'un gradient'ini parent Tensor'lara dağıtma işini yapmalıdır.
+
+Matematiksel örnekle Backward() mantığı.
+
+Örneğimiz:
+
+c=a*b
+
+d=c+a
+
+L=d^2
+
+Forward değerleri:
+Tensor	Değer
+a	2
+b	3
+c	6
+d	8
+L	64
+
+Backward başlangıcı:
+
+L.grad=1
+
+İlk işlem: L=d^2
+
+(L): Türevi alınan fonksiyon, yani bizim örnekte kayıp değeri.
+
+(d): L'nin bağlı olduğu değişken.
+
+(d): Kısmi türev işareti. Bir değişkenin diğer değişkene göre nasıl değiştiğini gösterir.
+“d değiştiğinde L ne kadar değişiyor?” sorusunun matematiksel karşılığı.
+
+dL/dd = 2d olur çünkü 
+Türev kuralında yerine koyarsak:
+L nin d ye göre türevi
+d^2/d=2d olur
+
+d değerimiz 8 olduğuna göre:
+
+2*8=16 olur.
+
+Ama Backward başladığında şunu yapıyoruz:
+L.grad=1
+
+Peki neden 1 veriyoruz?
+Çünkü L, bizim hesaplamak istediğimiz son çıktı. L'nin kendisinin L'ye göre türevi:
+dL/dL (L nin kendisine göre türevi) = 1 dir çünkü:
+Bir değişkenin kendisine göre değişim oranı 1'dir.
+Şimdi zincir kuralını uyguluyoruz:
+
+d.grad = dL/dL x dL/dd
+
+d.grad = 1 \ 2d
+
+d.grad=1 x 2 x 8 = 16
+
+Yani 1, L'nin kendi gradient'idir. Başlangıç noktası olarak veriyoruz.
+Yani,
+Backward başlangıcı: L.grad=1
+L'den d'ye geçiş: 2d=16
+d'nin gradient'i: 1 x 16=16
+
+2. işlem: d=c+a
+
+Bizim amacımız, d'nin gradient değerini c ve a değişkenlerine dağıtmak.
+Bunun için türevlerini alıyoruz.
+Önce c'ye göre türev
+dd/dc = 1
+Neden 1?
+Çünkü 
+d=c+a
+c'yi 1 artırırsak, d de 1 artar. Dolayısıyla değişim oranı 1.
+Zincir kuralını uygulayalım:
+
+c.grad = d.grad x dd/dc
+
+c.grad = 16 x 1 = 16
+
+Şimdi a'ya göre türev
+dd/da=1 çünkü 
+Aynı şekilde a yı 1 arttırırsak, d de 1 artar.
+
+a.grad = d.grad x dd/da
+
+a.grad = 16 x 1 = 16
+
+Şu anki sonuç:
+Değişken	Gradient
+d	16
+c	16
+a	16
+
+Ama dikkat! a.grad henüz nihai değer değil.
+Çünkü a yalnızca d = c + a işleminde kullanılmadı.
+Aynı zamanda c = a * b işleminde de kullanıldı.
+Dolayısıyla a'nın gradient'ine başka bir yoldan daha katkı gelecek.
+Bir sonraki adımda c=a*b işlemini Backward yapacağız. Orada:
+c.grad = 16 
+değerini kullanarak hem a hem b için gradient hesaplayacağız.
+Ve a'ya gelen iki gradient katkısını toplayacağız.
+
+c = a × b
+Şimdi a'ya göre türev alalım.
+c = a × b
+a'yı 1 artırırsak c, b kadar artar. Bizim örneğimizde b = 3 olduğu için:
+a'yı 1 artırırsak c de 3 artar.
+
+Bu yüzden:
+dc/da = b = 3
+Zincir kuralını uygulayalım:
+a.grad += c.grad × dc/da
+a.grad += 16 × 3
+a.grad += 48
+Daha önce:
+a.grad = 16
+bulmuştuk.
+Şimdi yeni katkıyı ekliyoruz:
+a.grad = 16 + 48 = 64
+Neden topluyoruz? Çünkü a değişkeni hesaplama grafiğinde iki farklı yoldan L'yi etkiliyor:
+1. Yol: a → d → L
+2. Yol: a → c → d → L
+Bir değişken çıktıyı birden fazla yoldan etkiliyorsa, tüm gradient katkıları toplanır.
+
+Şimdi b için gradient hesaplayalım.
+c = a × b
+b'yi 1 artırırsak c, a kadar artar. Çünkü:
+c = a × b
+Örneğimizde a = 2 olduğu için:
+b'yi 1 artırırsak c, 2 artar.
+Bu yüzden:
+dc/db = a = 2
+
+Zincir kuralını uygulayalım:
+b.grad = c.grad × dc/db
+b.grad = 16 × 2
+b.grad = 32
+Sonuç:
+Değişken Gradient
+L 1
+d 16
+c 16
+a 64
+b 32
+Bu sonuç bize şunu söyler:
+a değerini çok küçük bir miktar artırırsak, L yaklaşık 64 katı kadar değişir.
+b değerini çok küçük bir miktar artırırsak, L yaklaşık 32 katı kadar değişir.
+İşte Backward geçişinin amacı da budur: Kayıp fonksiyonunun (L) her değişkene karşı ne kadar hassas olduğunu bulmak. Gradient'ler bu hassasiyeti sayısal olarak ifade eder.
+
+Autograd'ın yaptığı şey de tam olarak bu: 
+Her operasyonda "çıktı, girdiye göre ne kadar değişiyor?"
+ sorusunun cevabını (türevi) zincir kuralıyla geriye doğru taşımak.
