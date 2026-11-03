@@ -1009,7 +1009,31 @@ Tensor Tensor::operator*(float scalar) const
             result.At(indices) = At(indices) * scalar;
         }
     }
+    if (RequiresGrad())
+    {
+        Tensor* lhs = const_cast<Tensor*>(this);
 
+        result.m_requiresGrad = true;
+        result.m_isLeaf = false;
+
+        result.m_node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+
+        result.m_node->operationName = "MulScalar";
+        result.m_node->parents.push_back(lhs);
+
+        result.m_node->backward = [lhs, scalar](const Tensor& output)
+        {
+            if (!lhs->RequiresGrad())
+                return;
+
+            if (!lhs->m_grad)
+                lhs->m_grad = std::make_shared<Tensor>(Zeros(lhs->GetShape()));
+
+            Tensor lhsGradient = output.Grad() * scalar;
+
+            *(lhs->m_grad) += lhsGradient;
+        };
+    }
     return result;
 }
 
@@ -1017,8 +1041,7 @@ Tensor Tensor::operator/(float scalar) const
 {
     if (scalar == 0.0f)
     {
-        throw std::runtime_error(
-            "Division by zero.");
+        throw std::runtime_error("Division by zero.");
     }
     Tensor result(m_shape);
 
@@ -1038,7 +1061,31 @@ Tensor Tensor::operator/(float scalar) const
             result.At(indices) = At(indices) / scalar;
         }
     }
+    if (RequiresGrad())
+    {
+        Tensor* lhs = const_cast<Tensor*>(this);
 
+        result.m_requiresGrad = true;
+        result.m_isLeaf = false;
+
+        result.m_node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+
+        result.m_node->operationName = "MulScalar";
+        result.m_node->parents.push_back(lhs);
+
+        result.m_node->backward = [lhs, scalar](const Tensor& output)
+        {
+            if (!lhs->RequiresGrad())
+                return;
+
+            if (!lhs->m_grad)
+                lhs->m_grad = std::make_shared<Tensor>(Zeros(lhs->GetShape()));
+
+            Tensor lhsGradient = output.Grad() / scalar;
+
+            *(lhs->m_grad) += lhsGradient;
+        };
+    }
     return result;
 }
 
