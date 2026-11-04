@@ -165,6 +165,7 @@ public:
     */
     Tensor Sum(size_t dim) const;
     Tensor Sum(size_t dim, bool keepDim) const;
+    Tensor SumTensor() const;
 
     float Prod() const;
     Tensor Prod(size_t dim) const;
