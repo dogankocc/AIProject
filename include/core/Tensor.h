@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <unordered_set>
+#include <functional>
 #include "autograd/AutogradNode.h"
 
 class Tensor;
@@ -356,6 +357,10 @@ private:
         Tensor* tensor,
         std::unordered_set<const TensorAutogradState*>& visited,
         std::vector<Tensor*>& topo);
+
+    void AttachViewBackward(
+        Tensor& result,
+        std::function<Tensor(const Tensor&)> gradientTransform) const;
 
     static Tensor ReduceBroadcastGradient(
         const Tensor& gradient,

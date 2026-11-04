@@ -369,6 +369,40 @@ Tensor Tensor::Clone(CloneMode mode) const
     return result;
 }
 
+void Tensor::AttachViewBackward(
+    Tensor& result,
+    std::function<Tensor(const Tensor&)> gradientTransform) const
+{
+    if (!RequiresGrad())
+    {
+        return;
+    }
+
+    auto input = std::make_shared<Tensor>(*this);
+    result.m_autograd->requiresGrad = true;
+    result.m_autograd->isLeaf = false;
+    result.m_autograd->node =
+        std::make_shared<Tinynn::Autograd::AutogradNode>();
+    result.m_autograd->node->operationName = "View";
+    result.m_autograd->node->parents.push_back(input);
+    result.m_autograd->node->backward =
+        [input, gradientTransform = std::move(gradientTransform)](Tensor& output)
+    {
+        if (!input->RequiresGrad())
+        {
+            return;
+        }
+
+        if (!input->m_autograd->grad)
+        {
+            input->m_autograd->grad =
+                std::make_shared<Tensor>(Tensor::Zeros(input->GetShape()));
+        }
+
+        *(input->m_autograd->grad) += gradientTransform(output.Grad());
+    };
+}
+
 Tensor Tensor::Slice(size_t dim, size_t index) const
 {
     if (!m_data)
@@ -396,11 +430,28 @@ Tensor Tensor::Slice(size_t dim, size_t index) const
     newShape.erase(newShape.begin() + dim);
     newStrides.erase(newStrides.begin() + dim);
 
-    return Tensor(
+    Tensor result(
         newShape,
         newStrides,
         m_data,
         newOffset);
+
+    AttachViewBackward(result, [inputShape = m_shape, dim, index](const Tensor& outputGradient)
+    {
+        Tensor inputGradient = Tensor::Zeros(inputShape);
+
+        for (size_t i = 0; i < outputGradient.Size(); ++i)
+        {
+            Tensor::Shape outputIndices = outputGradient.LinearToIndices(i);
+            Tensor::Shape inputIndices = outputIndices;
+            inputIndices.insert(inputIndices.begin() + dim, index);
+            inputGradient.At(inputIndices) += outputGradient.At(outputIndices);
+        }
+
+        return inputGradient;
+    });
+
+    return result;
 }
 
 Tensor Tensor::Permute(const std::vector<size_t>& dims) const
@@ -438,11 +489,33 @@ Tensor Tensor::Permute(const std::vector<size_t>& dims) const
         newStrides[i] = m_strides[dim];
     }
 
-    return Tensor(
+    Tensor result(
         newShape,
         newStrides,
         m_data,
         m_offset);
+
+    AttachViewBackward(result, [inputShape = m_shape, dims](const Tensor& outputGradient)
+    {
+        Tensor inputGradient = Tensor::Zeros(inputShape);
+
+        for (size_t i = 0; i < outputGradient.Size(); ++i)
+        {
+            Tensor::Shape outputIndices = outputGradient.LinearToIndices(i);
+            Tensor::Shape inputIndices(inputShape.size(), 0);
+
+            for (size_t outputDim = 0; outputDim < dims.size(); ++outputDim)
+            {
+                inputIndices[dims[outputDim]] = outputIndices[outputDim];
+            }
+
+            inputGradient.At(inputIndices) += outputGradient.At(outputIndices);
+        }
+
+        return inputGradient;
+    });
+
+    return result;
 }
 
 Tensor Tensor::View(const Shape& shape) const
@@ -459,11 +532,23 @@ Tensor Tensor::View(const Shape& shape) const
             "Element count mismatch.");
     }
 
-    return Tensor(
+    Tensor result(
         shape,
         ComputeContiguousStrides(shape),
         m_data,
         m_offset);
+
+    AttachViewBackward(result, [inputShape = m_shape](const Tensor& outputGradient)
+    {
+        Tensor inputGradient = Tensor::Zeros(inputShape);
+        for (size_t i = 0; i < outputGradient.Size(); ++i)
+        {
+            inputGradient[i] = outputGradient[i];
+        }
+        return inputGradient;
+    });
+
+    return result;
 }
 
 Tensor Tensor::Flatten() const
@@ -485,11 +570,42 @@ Tensor Tensor::Squeeze() const
         }
     }
 
-    return Tensor(
+    Tensor result(
         newShape,
         newStrides,
         m_data,
         m_offset);
+
+    AttachViewBackward(result, [inputShape = m_shape](const Tensor& outputGradient)
+    {
+        Tensor inputGradient = Tensor::Zeros(inputShape);
+
+        for (size_t i = 0; i < outputGradient.Size(); ++i)
+        {
+            Tensor::Shape outputIndices = outputGradient.LinearToIndices(i);
+            Tensor::Shape inputIndices;
+            inputIndices.reserve(inputShape.size());
+
+            size_t outputDim = 0;
+            for (size_t inputDim = 0; inputDim < inputShape.size(); ++inputDim)
+            {
+                if (inputShape[inputDim] == 1)
+                {
+                    inputIndices.push_back(0);
+                }
+                else
+                {
+                    inputIndices.push_back(outputIndices[outputDim++]);
+                }
+            }
+
+            inputGradient.At(inputIndices) += outputGradient.At(outputIndices);
+        }
+
+        return inputGradient;
+    });
+
+    return result;
 }
 
 Tensor Tensor::Unsqueeze(size_t dim) const
@@ -511,11 +627,28 @@ Tensor Tensor::Unsqueeze(size_t dim) const
 
     newStrides.insert(newStrides.begin() + dim, newStride);
 
-    return Tensor(
+    Tensor result(
         newShape,
         newStrides,
         m_data,
         m_offset);
+
+    AttachViewBackward(result, [inputShape = m_shape, dim](const Tensor& outputGradient)
+    {
+        Tensor inputGradient = Tensor::Zeros(inputShape);
+
+        for (size_t i = 0; i < outputGradient.Size(); ++i)
+        {
+            Tensor::Shape outputIndices = outputGradient.LinearToIndices(i);
+            Tensor::Shape inputIndices = outputIndices;
+            inputIndices.erase(inputIndices.begin() + dim);
+            inputGradient.At(inputIndices) += outputGradient.At(outputIndices);
+        }
+
+        return inputGradient;
+    });
+
+    return result;
 }
 
 Tensor Tensor::BroadcastTo(const Shape& targetShape) const
@@ -602,11 +735,18 @@ Tensor Tensor::BroadcastTo(const Shape& targetShape) const
     // Değişmeyenler:
     //   data
     //   offset
-    return Tensor(
+    Tensor result(
         newShape,
         newStrides,
         m_data,
         m_offset);
+
+    AttachViewBackward(result, [inputShape = m_shape](const Tensor& outputGradient)
+    {
+        return Tensor::ReduceBroadcastGradient(outputGradient, inputShape);
+    });
+
+    return result;
 }
 
 Tensor Tensor::Expand(const Shape& shape) const
@@ -1721,13 +1861,17 @@ Tensor Tensor::SumTensor() const
 
 Tensor Tensor::Sum(size_t dim) const
 {
+    return Sum(dim, false);
+}
+
+Tensor Tensor::Sum(size_t dim, bool keepDim) const
+{
     if (dim >= Rank())
     {
         throw std::out_of_range("Invalid dimension.");
     }
 
     Shape resultShape = m_shape;
-
     resultShape.erase(resultShape.begin() + dim);
 
     Tensor result(resultShape, 0.0f);
@@ -1735,27 +1879,17 @@ Tensor Tensor::Sum(size_t dim) const
     for (size_t i = 0; i < result.Size(); ++i)
     {
         Shape resultIndices = LinearToIndices(i, resultShape);
-
         float sum = 0.0f;
 
         for (size_t k = 0; k < m_shape[dim]; ++k)
         {
-            Shape srcIndices = resultIndices;
-
-            srcIndices.insert(srcIndices.begin() + dim, k);
-
-            sum += At(srcIndices);
+            Shape sourceIndices = resultIndices;
+            sourceIndices.insert(sourceIndices.begin() + dim, k);
+            sum += At(sourceIndices);
         }
 
         result.At(resultIndices) = sum;
     }
-
-    return result;
-}
-
-Tensor Tensor::Sum(size_t dim, bool keepDim) const
-{
-    Tensor result = Sum(dim);
 
     if (keepDim)
     {
@@ -2932,24 +3066,10 @@ Tensor Tensor::Transpose(size_t dim1, size_t dim2) const
             "Transpose dimension out of range.");
     }
 
-    if (dim1 == dim2)
-    {
-        return *this;
-    }
-
-    Shape newShape = m_shape;
-    std::swap(newShape[dim1],
-        newShape[dim2]);
-
-    Strides newStrides = m_strides;
-    std::swap(newStrides[dim1],
-        newStrides[dim2]);
-
-    return Tensor(
-        newShape,
-        newStrides,
-        m_data,
-        m_offset);
+    std::vector<size_t> dims(m_shape.size());
+    std::iota(dims.begin(), dims.end(), 0);
+    std::swap(dims[dim1], dims[dim2]);
+    return Permute(dims);
 }
 
 Tensor Tensor::Transpose() const
@@ -2959,15 +3079,11 @@ Tensor Tensor::Transpose() const
         return *this;
     }
 
-    //Transpose kuralı: Son iki ekseni yer değiştir xT[i][j] = x[j][i]
-    Shape newShape = m_shape;
-    std::swap(newShape[newShape.size() - 1], newShape[newShape.size() - 2]);
-
-    Strides newStrides = m_strides;
-    std::swap(newStrides[newStrides.size() - 1], newStrides[newStrides.size() - 2]);
-
-    // Aynı veriyi paylaşan view oluştur, m_offset değişmez çünkü m_data değişmedi
-    return Tensor(newShape, newStrides, m_data, m_offset);
+    // Transpose swaps the final two axes.
+    std::vector<size_t> dims(m_shape.size());
+    std::iota(dims.begin(), dims.end(), 0);
+    std::swap(dims[dims.size() - 1], dims[dims.size() - 2]);
+    return Permute(dims);
 }
 
 Tensor Tensor::Identity(size_t n)
