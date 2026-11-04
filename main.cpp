@@ -184,21 +184,66 @@ int main()
 	std::cout << "b.grad = " << b.Grad()[0] << std::endl;
 	*/
 
-	Tensor a(
-		Tensor::Shape{ 2, 3 },
-		std::vector<float>{1, 1, 1, 1, 1, 1});
+	//Tensor a(
+	//	Tensor::Shape{ 2, 3 },
+	//	std::vector<float>{1, 1, 1, 1, 1, 1});
 
-	Tensor b(
-		Tensor::Shape{ 3 },
-		std::vector<float>{2, 4, 5});
+	//Tensor b(
+	//	Tensor::Shape{ 3 },
+	//	std::vector<float>{2, 4, 5});
 
-	a.SetRequiresGrad(true);
-	b.SetRequiresGrad(true);
-	Tensor c = a - b;
-	c.Backward();
-	std::cout << "c = " << c[0] << std::endl;
-	std::cout << "a.grad = " << a.Grad()[0] << std::endl;
-	std::cout << "b.grad = " << b.Grad()[0] << std::endl;
+	//a.SetRequiresGrad(true);
+	//b.SetRequiresGrad(true);
+	//Tensor c = a - b;
+	//c.Backward();
+	//std::cout << "c = " << c[0] << std::endl;
+	//std::cout << "a.grad = " << a.Grad()[0] << std::endl;
+	//std::cout << "b.grad = " << b.Grad()[0] << std::endl;
+
+	//Tensor x({ 4 },
+	//{
+	//	1,
+	//	2,
+	//	3,
+	//	4
+	//});
+
+	//x.SetRequiresGrad(true);
+
+	//Tensor y = x.Sum(0, false);
+
+	//y.Backward();
+	//std::cout << "y shape size = "
+	//	<< y.GetShape().size()
+	//	<< std::endl;
+
+	//std::cout << y.RequiresGrad() << std::endl;
+
+Tensor x({ 4 },
+{
+	1,2,3,4
+});
+
+x.SetRequiresGrad(true);
+
+//Tensor loss =
+//x.Pow(2).SumTensor();
+
+Tensor tmp = x.Pow(2);
+
+Tensor loss = tmp.SumTensor();
+
+loss.Backward();
+
+	for (size_t i = 0; i < x.Grad().Size(); ++i)
+	{
+		std::cout
+			<< x.Grad()[i]
+			<< " ";
+	}
+
+	std::cout << std::endl;
+
 	std::cout << "========== TUM TESTLER TAMAMLANDI ==========" << std::endl;
 
 	return 0;

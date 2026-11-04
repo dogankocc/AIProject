@@ -1678,6 +1678,44 @@ Tensor Tensor::SumTensor() const
 {
     Tensor result({}, Sum());
 
+    if (RequiresGrad())
+    {
+        Tensor* input = const_cast<Tensor*>(this);
+
+        result.m_requiresGrad = true;
+        result.m_isLeaf = false;
+
+        result.m_node =
+            std::make_shared<
+            Tinynn::Autograd::AutogradNode>();
+
+        result.m_node->operationName = "SumTensor";
+
+        result.m_node->parents.push_back(input);
+
+        result.m_node->backward = [input](Tensor& output)
+        {
+            if (!input->RequiresGrad()) return;
+
+
+            if (!input->m_grad)
+            {
+                input->m_grad =
+                    std::make_shared<Tensor>(
+                        Tensor::Zeros(
+                            input->GetShape()));
+            }
+
+            float gradValue = output.Grad().At({});
+
+            Tensor gradient(
+                input->GetShape(),
+                gradValue);
+
+            *(input->m_grad) += gradient;
+        };
+    }
+
     return result;
 }
 
@@ -2877,59 +2915,6 @@ Tensor Tensor::MatMul(const Tensor& other) const
        B[0][1] seçmek 5x6 lık matrislerden sadece birini seçmek demek olur.
     */
 
-    if (m_requiresGrad || other.m_requiresGrad)
-    {
-        result.m_requiresGrad = true;
-        result.m_isLeaf = false;
-
-        result.m_node = std::make_shared<Tinynn::Autograd::AutogradNode>();
-
-        result.m_node->operationName = "MatMul";
-
-        Tensor* lhs = const_cast<Tensor*>(this);
-
-        Tensor* rhs = const_cast<Tensor*>(&other);
-
-        result.m_node->parents.push_back(lhs);
-        result.m_node->parents.push_back(rhs);
-
-        result.m_node->backward = [lhs, rhs](Tensor& output)
-        {
-            if (lhs->RequiresGrad())
-            {
-                if (!lhs->m_grad)
-                {
-                    lhs->m_grad =
-                        std::make_shared<Tensor>(
-                            Tensor::Zeros(
-                                lhs->GetShape()));
-                }
-
-                Tensor lhsGradient =
-                    output.Grad().MatMul(
-                        rhs->Transpose());
-
-                *(lhs->m_grad) += lhsGradient;
-            }
-
-            if (rhs->RequiresGrad())
-            {
-                if (!rhs->m_grad)
-                {
-                    rhs->m_grad =
-                        std::make_shared<Tensor>(
-                            Tensor::Zeros(
-                                rhs->GetShape()));
-                }
-
-                Tensor rhsGradient =
-                    lhs->Transpose().MatMul(
-                        output.Grad());
-
-                *(rhs->m_grad) += rhsGradient;
-            }
-        };
-    }
     return result;
 }
 
