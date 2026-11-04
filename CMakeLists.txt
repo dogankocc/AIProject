@@ -22,6 +22,23 @@ target_include_directories(AIProject PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
+add_executable(AIProjectTests
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/TensorAutogradTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/Tensor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/autograd/AutogradNode.cpp"
+)
+
+target_include_directories(AIProjectTests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+if (CMAKE_VERSION VERSION_GREATER 3.12)
+  set_property(TARGET AIProjectTests PROPERTY CXX_STANDARD 20)
+endif()
+
+enable_testing()
+add_test(NAME TensorAutogradTests COMMAND AIProjectTests)
+
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET AIProject PROPERTY CXX_STANDARD 20)
 endif()
