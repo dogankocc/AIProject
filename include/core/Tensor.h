@@ -6,6 +6,16 @@
 #include <unordered_set>
 #include "autograd/AutogradNode.h"
 
+class Tensor;
+
+struct TensorAutogradState
+{
+    std::shared_ptr<Tensor> grad;
+    bool requiresGrad = false;
+    bool isLeaf = true;
+    std::shared_ptr<Tinynn::Autograd::AutogradNode> node;
+};
+
 class Tensor
 {
 public:
@@ -344,7 +354,7 @@ public:
 private:
     static void BuildTopo(
         Tensor* tensor,
-        std::unordered_set<Tensor*>& visited,
+        std::unordered_set<const TensorAutogradState*>& visited,
         std::vector<Tensor*>& topo);
 
     static Tensor ReduceBroadcastGradient(
@@ -363,8 +373,7 @@ private:
     size_t m_offset; 
 
 	//AutoGrad için gerekli olan değişkenler
-    std::shared_ptr<Tensor> m_grad;
-    bool m_requiresGrad;
-    bool m_isLeaf;
-    std::shared_ptr<Tinynn::Autograd::AutogradNode> m_node;
+    // Copies share gradient identity; graph nodes own Tensor snapshots.
+    std::shared_ptr<TensorAutogradState> m_autograd =
+        std::make_shared<TensorAutogradState>();
 };

@@ -226,12 +226,7 @@ Tensor x({ 4 },
 
 x.SetRequiresGrad(true);
 
-//Tensor loss =
-//x.Pow(2).SumTensor();
-
-Tensor tmp = x.Pow(2);
-
-Tensor loss = tmp.SumTensor();
+Tensor loss = x.Pow(2).SumTensor();
 
 loss.Backward();
 
