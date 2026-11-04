@@ -37,8 +37,7 @@ Tensor::Tensor(
 
     if (expectedSize != data.size())
     {
-        throw std::invalid_argument(
-            "Data size does not match shape.");
+        throw std::invalid_argument("Data size does not match shape.");
     }
 }
 
@@ -381,8 +380,7 @@ void Tensor::AttachViewBackward(
     auto input = std::make_shared<Tensor>(*this);
     result.m_autograd->requiresGrad = true;
     result.m_autograd->isLeaf = false;
-    result.m_autograd->node =
-        std::make_shared<Tinynn::Autograd::AutogradNode>();
+    result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
     result.m_autograd->node->operationName = "View";
     result.m_autograd->node->parents.push_back(input);
     result.m_autograd->node->backward =

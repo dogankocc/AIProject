@@ -200,13 +200,7 @@ int main()
 	//std::cout << "a.grad = " << a.Grad()[0] << std::endl;
 	//std::cout << "b.grad = " << b.Grad()[0] << std::endl;
 
-	//Tensor x({ 4 },
-	//{
-	//	1,
-	//	2,
-	//	3,
-	//	4
-	//});
+	//Tensor x({ 4 },{ 1, 2, 3, 4 });
 
 	//x.SetRequiresGrad(true);
 
@@ -219,22 +213,17 @@ int main()
 
 	//std::cout << y.RequiresGrad() << std::endl;
 
-Tensor x({ 4 },
-{
-	1,2,3,4
-});
+	Tensor x({ 4 }, { 1,2,3,4 });
 
-x.SetRequiresGrad(true);
+	x.SetRequiresGrad(true);
 
-Tensor loss = x.Pow(2).SumTensor();
+	Tensor loss = x.Pow(2).SumTensor();
 
-loss.Backward();
+	loss.Backward();
 
 	for (size_t i = 0; i < x.Grad().Size(); ++i)
 	{
-		std::cout
-			<< x.Grad()[i]
-			<< " ";
+		std::cout << x.Grad()[i] << " ";
 	}
 
 	std::cout << std::endl;
