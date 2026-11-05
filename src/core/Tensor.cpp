@@ -2927,21 +2927,21 @@ Tensor Tensor::MatMul(const Tensor& other) const
         throw std::invalid_argument("MatMul requires tensors with rank >= 2.");
     }
     // Son iki boyutlar matris çarpımı için kullanılır.
-    // A(..., M, K)
-    // B(..., K, N)
-    // Result(..., M, N)
-    // M = A'nın satır sayısı
-    // K = ortak boyut
-    // N = B'nin sütun sayısı
+    // A(..., rowCount, sharedDimension)
+    // B(..., sharedDimension, columnCount)
+    // Result(..., rowCount, columnCount)
+    // rowCount = A'nın satır sayısı
+    // sharedDimension = ortak boyut
+    // columnCount = B'nin sütun sayısı
     // Örn: A = { 2,3,4,5 } B = { 1,3,5,6 }
-    // M = 4, K = 5 olur. Yani A'nın son iki boyutu 4 x 5 lik bir matris demektir.
-    size_t M = m_shape[Rank() - 2];
-    size_t K = m_shape[Rank() - 1];
-    // K2 = 5, N = 6 olur. Yani B'nin son iki boyutu 5 x 6 lık bir matris demektir.
-    size_t K2 = other.m_shape[other.Rank() - 2];
-    size_t N = other.m_shape[other.Rank() - 1];
+    // rowCount = 4, sharedDimension = 5 olur. Yani A'nın son iki boyutu 4 x 5 lik bir matris demektir.
+    size_t rowCount = m_shape[Rank() - 2];
+    size_t sharedDimension = m_shape[Rank() - 1];
+    // rightSharedDimension = 5, columnCount = 6 olur. Yani B'nin son iki boyutu 5 x 6 lık bir matris demektir.
+    size_t rightSharedDimension = other.m_shape[other.Rank() - 2];
+    size_t columnCount = other.m_shape[other.Rank() - 1];
 
-    if (K != K2)
+    if (sharedDimension != rightSharedDimension)
     {
         throw std::invalid_argument("MatMul dimension mismatch.");
     }
@@ -2964,17 +2964,22 @@ Tensor Tensor::MatMul(const Tensor& other) const
     // {2,3} vs {1,3} -> {2,3} olur. Yani 2 x 3 = 6 tane batch var demektir.
     Shape batchShape = ComputeBroadcastShape(batchA, batchB);
 
-    // Sonuç tensorunun shape'i batch shape + (M,N) olur.
-    // Normal MatMul kuralı: (M,K) × (K,N) -> (M,N) olduğuna göre, 
+    // Sonuç tensorunun shape'i batch shape + (rowCount,columnCount) olur.
+    // MatMul kuralı: (rowCount,sharedDimension) × (sharedDimension,columnCount) -> (rowCount,columnCount).
     // Son iki boyutların matris çarpımı: (4,5) × (5,6) -> (4,6) olur.
     // Batch'i de ekleyince: {2,3,4,6} yani 2 x 3 tane 4 x 6 lık matris var demek olur. 
     Shape resultShape = batchShape;
 
-    resultShape.push_back(M);
-    resultShape.push_back(N);
+    resultShape.push_back(rowCount);
+    resultShape.push_back(columnCount);
 
     Tensor result(resultShape, 0.0f);
 
+    //Batch, aynı işlemi aynı anda yaptığımız örnekler grubudur.
+    //Ör. Girdi shape'i: (batch, sıra uzunluğu, özellik sayısı)
+	// batch = 32, sıra uzunluğu = 10, özellik sayısı = 250
+    //Bu, 3 örnek olduğunu; her birinin 10 token ve her tokenın 256 özellik taşıdığını anlatır.
+    //Yani Matematiksel olarak, A: (3, 2, 4)   → 3 tane 2×4 matris demektir.
     size_t batchCount = ComputeElementCount(batchShape);
 
     //Adım 4: Batch döngüsü
@@ -2993,21 +2998,18 @@ Tensor Tensor::MatMul(const Tensor& other) const
         // Yani Şimdi hangi matrisi çarpacağız? sorusuna cevap verir.
         Shape batchIndices = LinearToIndices(batch, batchShape);
 
-        // M = A'nın son ikinci boyutu, yani batch boyutlar ayrıldıktan sonra 
-        // kalan son 2 boyutun yani A matrisinin satır sayısı. 
-        // Yani sonuç matrisinin satır sayısı.
-        for (size_t m = 0; m < M; ++m) // Örneğin: A = {2,3,4,5} B = {1,3,5,6} için M = 4 olur. 
+        // rowCount, A matrisinin satır ve sonuç matrisinin satır sayısıdır.
+        for (size_t m = 0; m < rowCount; ++m)
         {
-            // N = B matrisinin son boyutu, yani B matrisinin sütun sayısı. 
-            // Yani sonuç matrisinin sütun sayısı.
-            for (size_t n = 0; n < N; ++n) // Örneğin: A = {2,3,4,5} B = {1,3,5,6} için N = 6 olur.
+            // columnCount, B matrisinin ve sonuç matrisinin sütun sayısıdır.
+            for (size_t n = 0; n < columnCount; ++n)
             {
                 float sum = 0.0f;
 
-                // K = A matrisinin son boyutu,
+                // sharedDimension = A matrisinin son boyutu,
                 // A x B çarpım matrisinin bir elemanı hesaplanırken;
                 // c[m][n] = Σ A[m][k] * B[k][n] formülü kullanılır.
-                for (size_t k = 0; k < K; ++k)
+                for (size_t k = 0; k < sharedDimension; ++k)
                 {
                     Shape lhsIndices = batchIndices;
 
@@ -3046,6 +3048,123 @@ Tensor Tensor::MatMul(const Tensor& other) const
        B = { 1,3,5,6 } demek B[1][3][5][6] demektir,
        B[0][1] seçmek 5x6 lık matrislerden sadece birini seçmek demek olur.
     */
+
+    if (RequiresGrad() || other.RequiresGrad())
+    {
+        auto lhs = std::make_shared<Tensor>(*this);
+        auto rhs = std::make_shared<Tensor>(other);
+
+        result.m_autograd->requiresGrad = true;
+        result.m_autograd->isLeaf = false;
+        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node->operationName = "MatMul";
+
+        if (lhs->RequiresGrad())
+        {
+            result.m_autograd->node->parents.push_back(lhs);
+        }
+        if (rhs->RequiresGrad())
+        {
+            result.m_autograd->node->parents.push_back(rhs);
+        }
+
+        result.m_autograd->node->backward =
+            [lhs, rhs, batchShape, batchCount, rowCount, sharedDimension, columnCount](Tensor& output)
+        {
+            Tensor lhsGradient;
+            Tensor rhsGradient;
+            if (lhs->RequiresGrad())
+            {
+                lhsGradient = Tensor::Zeros(lhs->GetShape());
+            }
+            if (rhs->RequiresGrad())
+            {
+                rhsGradient = Tensor::Zeros(rhs->GetShape());
+            }
+
+            Shape lhsBatch(lhs->GetShape().begin(), lhs->GetShape().end() - 2);
+            Shape rhsBatch(rhs->GetShape().begin(), rhs->GetShape().end() - 2);
+            const size_t lhsRankDiff = batchShape.size() - lhsBatch.size();
+            const size_t rhsRankDiff = batchShape.size() - rhsBatch.size();
+
+            for (size_t batch = 0; batch < batchCount; ++batch)
+            {
+                Shape batchIndices = output.LinearToIndices(batch, batchShape);
+                Shape lhsBatchIndices(lhsBatch.size(), 0);
+                Shape rhsBatchIndices(rhsBatch.size(), 0);
+
+                for (size_t d = 0; d < lhsBatch.size(); ++d)
+                {
+                    if (lhsBatch[d] != 1)
+                    {
+                        lhsBatchIndices[d] = batchIndices[d + lhsRankDiff];
+                    }
+                }
+                for (size_t d = 0; d < rhsBatch.size(); ++d)
+                {
+                    if (rhsBatch[d] != 1)
+                    {
+                        rhsBatchIndices[d] = batchIndices[d + rhsRankDiff];
+                    }
+                }
+
+                for (size_t m = 0; m < rowCount; ++m)
+                {
+                    for (size_t n = 0; n < columnCount; ++n)
+                    {
+                        Shape outputIndices = batchIndices;
+                        outputIndices.push_back(m);
+                        outputIndices.push_back(n);
+                        const float outputGradient = output.Grad().At(outputIndices);
+
+                        for (size_t k = 0; k < sharedDimension; ++k)
+                        {
+                            if (lhs->RequiresGrad())
+                            {
+                                Shape lhsIndices = lhsBatchIndices;
+                                lhsIndices.push_back(m);
+                                lhsIndices.push_back(k);
+                                Shape rhsIndices = rhsBatchIndices;
+                                rhsIndices.push_back(k);
+                                rhsIndices.push_back(n);
+                                lhsGradient.At(lhsIndices) += outputGradient * rhs->At(rhsIndices);
+                            }
+
+                            if (rhs->RequiresGrad())
+                            {
+                                Shape lhsIndices = lhsBatchIndices;
+                                lhsIndices.push_back(m);
+                                lhsIndices.push_back(k);
+                                Shape rhsIndices = rhsBatchIndices;
+                                rhsIndices.push_back(k);
+                                rhsIndices.push_back(n);
+                                rhsGradient.At(rhsIndices) += outputGradient * lhs->At(lhsIndices);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (lhs->RequiresGrad())
+            {
+                if (!lhs->m_autograd->grad)
+                {
+                    lhs->m_autograd->grad =
+                        std::make_shared<Tensor>(Tensor::Zeros(lhs->GetShape()));
+                }
+                *(lhs->m_autograd->grad) += lhsGradient;
+            }
+            if (rhs->RequiresGrad())
+            {
+                if (!rhs->m_autograd->grad)
+                {
+                    rhs->m_autograd->grad =
+                        std::make_shared<Tensor>(Tensor::Zeros(rhs->GetShape()));
+                }
+                *(rhs->m_autograd->grad) += rhsGradient;
+            }
+        };
+    }
 
     return result;
 }
