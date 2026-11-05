@@ -14,7 +14,8 @@ namespace
         const std::string& testName,
         const Tensor& actual,
         const Tensor::Shape& expectedShape,
-        const std::vector<float>& expectedValues)
+        const std::vector<float>& expectedValues,
+        float tolerance = 1e-5f)
     {
         if (actual.GetShape() != expectedShape || actual.Size() != expectedValues.size())
         {
@@ -25,7 +26,7 @@ namespace
 
         for (size_t i = 0; i < expectedValues.size(); ++i)
         {
-            if (std::fabs(actual[i] - expectedValues[i]) > 1e-5f)
+            if (std::fabs(actual[i] - expectedValues[i]) > tolerance)
             {
                 std::cerr << "FAIL " << testName << ": value " << i
                     << " expected " << expectedValues[i]
@@ -98,6 +99,41 @@ int main()
 
         ExpectTensor("Sum(dim, keepDim) propagates gradients", input.Grad(),
             { 2, 3 }, { 3, 3, 3, 5, 5, 5 });
+    });
+
+    Run("Normalize(dim) gradient matches finite differences", []
+    {
+        const Tensor::Shape shape = { 2, 3 };
+        std::vector<float> values = { 1, 2, 4, 2, 5, 9 };
+        const std::vector<float> weightValues = { 1, -2, 0.5f, -1, 3, 2 };
+        Tensor weights = MakeTensor(shape, weightValues);
+
+        auto computeLoss = [&](const std::vector<float>& inputValues)
+        {
+            Tensor sample = MakeTensor(shape, inputValues);
+            return (sample.Normalize(1) * weights).Sum();
+        };
+
+        Tensor input = MakeTensor(shape, values);
+        input.SetRequiresGrad(true);
+        Tensor loss = (input.Normalize(1) * weights).SumTensor();
+        loss.Backward();
+
+        const float epsilon = 1e-3f;
+        std::vector<float> numericalGradient(values.size());
+        for (size_t i = 0; i < values.size(); ++i)
+        {
+            std::vector<float> plusValues = values;
+            std::vector<float> minusValues = values;
+            plusValues[i] += epsilon;
+            minusValues[i] -= epsilon;
+            numericalGradient[i] =
+                (computeLoss(plusValues) - computeLoss(minusValues)) /
+                (2.0f * epsilon);
+        }
+
+        ExpectTensor("Normalize(dim) gradient matches finite differences",
+            input.Grad(), shape, numericalGradient, 2e-3f);
     });
 
     Run("Slice scatters gradients to selected region", []

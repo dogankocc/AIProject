@@ -1451,6 +1451,38 @@ Tensor Tensor::Clamp(float minValue, float maxValue) const
         }
     }
 
+    if (RequiresGrad())
+    {
+        auto input = std::make_shared<Tensor>(*this);
+        result.m_autograd->requiresGrad = true;
+        result.m_autograd->isLeaf = false;
+        result.m_autograd->node =
+            std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node->operationName = "Clamp";
+        result.m_autograd->node->parents.push_back(input);
+        result.m_autograd->node->backward =
+            [input, minValue, maxValue](Tensor& output)
+        {
+            Tensor inputGradient = Tensor::Zeros(input->GetShape());
+            for (size_t i = 0; i < input->Size(); ++i)
+            {
+                Shape indices = input->LinearToIndices(i);
+                const float value = input->At(indices);
+                if (value > minValue && value < maxValue)
+                {
+                    inputGradient.At(indices) = output.Grad().At(indices);
+                }
+            }
+
+            if (!input->m_autograd->grad)
+            {
+                input->m_autograd->grad =
+                    std::make_shared<Tensor>(Tensor::Zeros(input->GetShape()));
+            }
+            *(input->m_autograd->grad) += inputGradient;
+        };
+    }
+
     return result;
 }
 
@@ -1475,6 +1507,36 @@ Tensor Tensor::ClampMin(float minValue) const
         }
     }
 
+    if (RequiresGrad())
+    {
+        auto input = std::make_shared<Tensor>(*this);
+        result.m_autograd->requiresGrad = true;
+        result.m_autograd->isLeaf = false;
+        result.m_autograd->node =
+            std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node->operationName = "ClampMin";
+        result.m_autograd->node->parents.push_back(input);
+        result.m_autograd->node->backward = [input, minValue](Tensor& output)
+        {
+            Tensor inputGradient = Tensor::Zeros(input->GetShape());
+            for (size_t i = 0; i < input->Size(); ++i)
+            {
+                Shape indices = input->LinearToIndices(i);
+                if (input->At(indices) > minValue)
+                {
+                    inputGradient.At(indices) = output.Grad().At(indices);
+                }
+            }
+
+            if (!input->m_autograd->grad)
+            {
+                input->m_autograd->grad =
+                    std::make_shared<Tensor>(Tensor::Zeros(input->GetShape()));
+            }
+            *(input->m_autograd->grad) += inputGradient;
+        };
+    }
+
     return result;
 }
 
@@ -1497,6 +1559,36 @@ Tensor Tensor::ClampMax(float maxValue) const
 
             result.At(indices) = std::min(At(indices), maxValue);
         }
+    }
+
+    if (RequiresGrad())
+    {
+        auto input = std::make_shared<Tensor>(*this);
+        result.m_autograd->requiresGrad = true;
+        result.m_autograd->isLeaf = false;
+        result.m_autograd->node =
+            std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node->operationName = "ClampMax";
+        result.m_autograd->node->parents.push_back(input);
+        result.m_autograd->node->backward = [input, maxValue](Tensor& output)
+        {
+            Tensor inputGradient = Tensor::Zeros(input->GetShape());
+            for (size_t i = 0; i < input->Size(); ++i)
+            {
+                Shape indices = input->LinearToIndices(i);
+                if (input->At(indices) < maxValue)
+                {
+                    inputGradient.At(indices) = output.Grad().At(indices);
+                }
+            }
+
+            if (!input->m_autograd->grad)
+            {
+                input->m_autograd->grad =
+                    std::make_shared<Tensor>(Tensor::Zeros(input->GetShape()));
+            }
+            *(input->m_autograd->grad) += inputGradient;
+        };
     }
 
     return result;
@@ -2083,11 +2175,7 @@ float Tensor::Mean() const
 
 Tensor Tensor::Mean(size_t dim, bool keepDim) const
 {
-    Tensor result = Sum(dim, keepDim);
-
-    result /= static_cast<float>(m_shape[dim]);
-
-    return result;
+    return Sum(dim, keepDim) / static_cast<float>(m_shape[dim]);
 }
 
 float Tensor::Max() const
@@ -3796,6 +3884,7 @@ Tensor Tensor::Where(
             falseTensor.m_shape);
 
     Tensor result(resultShape);
+    std::vector<bool> selectedTrue(result.Size(), false);
 
     for (size_t i = 0; i < result.Size(); ++i)
     {
@@ -3819,10 +3908,87 @@ Tensor Tensor::Where(
         float conditionValue =
             (*condition.m_data)[conditionOffset];
 
-        result.At(indices) =
-            (conditionValue != 0.0f)
+        const bool useTrueTensor = conditionValue != 0.0f;
+        selectedTrue[i] = useTrueTensor;
+        result.At(indices) = useTrueTensor
             ? (*trueTensor.m_data)[trueOffset]
             : (*falseTensor.m_data)[falseOffset];
+    }
+
+    if (trueTensor.RequiresGrad() || falseTensor.RequiresGrad())
+    {
+        auto trueInput = std::make_shared<Tensor>(trueTensor);
+        auto falseInput = std::make_shared<Tensor>(falseTensor);
+
+        result.m_autograd->requiresGrad = true;
+        result.m_autograd->isLeaf = false;
+        result.m_autograd->node =
+            std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node->operationName = "Where";
+
+        if (trueInput->RequiresGrad())
+        {
+            result.m_autograd->node->parents.push_back(trueInput);
+        }
+        if (falseInput->RequiresGrad())
+        {
+            result.m_autograd->node->parents.push_back(falseInput);
+        }
+
+        result.m_autograd->node->backward =
+            [trueInput, falseInput, resultShape,
+                selectedTrue = std::move(selectedTrue)](Tensor& output)
+        {
+            Tensor trueGradient;
+            Tensor falseGradient;
+            if (trueInput->RequiresGrad())
+            {
+                trueGradient = Tensor::Zeros(resultShape);
+            }
+            if (falseInput->RequiresGrad())
+            {
+                falseGradient = Tensor::Zeros(resultShape);
+            }
+
+            for (size_t i = 0; i < output.Size(); ++i)
+            {
+                Shape indices = output.LinearToIndices(i);
+                const float gradient = output.Grad().At(indices);
+                if (selectedTrue[i] && trueInput->RequiresGrad())
+                {
+                    trueGradient.At(indices) += gradient;
+                }
+                else if (!selectedTrue[i] && falseInput->RequiresGrad())
+                {
+                    falseGradient.At(indices) += gradient;
+                }
+            }
+
+            if (trueInput->RequiresGrad())
+            {
+                Tensor inputGradient = Tensor::ReduceBroadcastGradient(
+                    trueGradient,
+                    trueInput->GetShape());
+                if (!trueInput->m_autograd->grad)
+                {
+                    trueInput->m_autograd->grad =
+                        std::make_shared<Tensor>(Tensor::Zeros(trueInput->GetShape()));
+                }
+                *(trueInput->m_autograd->grad) += inputGradient;
+            }
+            if (falseInput->RequiresGrad())
+            {
+                Tensor inputGradient = Tensor::ReduceBroadcastGradient(
+                    falseGradient,
+                    falseInput->GetShape());
+                if (!falseInput->m_autograd->grad)
+                {
+                    falseInput->m_autograd->grad =
+                        std::make_shared<Tensor>(Tensor::Zeros(falseInput->GetShape()));
+                }
+                *(falseInput->m_autograd->grad) += inputGradient;
+            }
+        };
     }
 
     return result;
@@ -3891,6 +4057,8 @@ Tensor Tensor::MaskedSelect(const Tensor& mask) const
     Tensor result({ count });
 
     size_t resultIndex = 0;
+    std::vector<Shape> selectedIndices;
+    selectedIndices.reserve(count);
 
     for (size_t i = 0; i < Size(); ++i)
     {
@@ -3899,7 +4067,35 @@ Tensor Tensor::MaskedSelect(const Tensor& mask) const
         if (mask.At(indices) != 0.0f)
         {
             result[resultIndex++] = At(indices);
+            selectedIndices.push_back(std::move(indices));
         }
+    }
+
+    if (RequiresGrad())
+    {
+        auto input = std::make_shared<Tensor>(*this);
+        result.m_autograd->requiresGrad = true;
+        result.m_autograd->isLeaf = false;
+        result.m_autograd->node =
+            std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node->operationName = "MaskedSelect";
+        result.m_autograd->node->parents.push_back(input);
+        result.m_autograd->node->backward =
+            [input, selectedIndices = std::move(selectedIndices)](Tensor& output)
+        {
+            Tensor inputGradient = Tensor::Zeros(input->GetShape());
+            for (size_t i = 0; i < selectedIndices.size(); ++i)
+            {
+                inputGradient.At(selectedIndices[i]) += output.Grad().At({ i });
+            }
+
+            if (!input->m_autograd->grad)
+            {
+                input->m_autograd->grad =
+                    std::make_shared<Tensor>(Tensor::Zeros(input->GetShape()));
+            }
+            *(input->m_autograd->grad) += inputGradient;
+        };
     }
 
     return result;
