@@ -267,6 +267,105 @@ int main()
             { 2, 3 }, { 1, 2, 3, 4, 5, 6 });
     });
 
+    Run("Backward formulas propagate gradients with recording disabled", []
+    {
+        {
+            Tensor input = MakeTensor({ 2 }, { 2, 3 });
+            input.SetRequiresGrad(true);
+            input.Pow(3.0f).SumTensor().Backward();
+            ExpectTensor("Pow backward gradient", input.Grad(), { 2 }, { 12, 27 });
+        }
+
+        {
+            Tensor input = MakeTensor({ 2 }, { 1, 2 });
+            input.SetRequiresGrad(true);
+            input.Log().SumTensor().Backward();
+            ExpectTensor("Log backward gradient", input.Grad(), { 2 }, { 1, 0.5f });
+        }
+
+        {
+            Tensor input = MakeTensor({ 2 }, { 1, 4 });
+            input.SetRequiresGrad(true);
+            input.Sqrt().SumTensor().Backward();
+            ExpectTensor("Sqrt backward gradient", input.Grad(), { 2 }, { 0.5f, 0.25f });
+        }
+
+        {
+            Tensor input = MakeTensor({ 3 }, { -2, 0, 3 });
+            input.SetRequiresGrad(true);
+            input.Abs().SumTensor().Backward();
+            ExpectTensor("Abs backward gradient", input.Grad(), { 3 }, { -1, 0, 1 });
+        }
+
+        {
+            Tensor input = MakeTensor({ 3 }, { -1, 0, 2 });
+            input.SetRequiresGrad(true);
+            input.ReLU().SumTensor().Backward();
+            ExpectTensor("ReLU backward gradient", input.Grad(), { 3 }, { 0, 0, 1 });
+        }
+
+        {
+            Tensor input = MakeTensor({ 2 }, { 0, std::log(3.0f) });
+            input.SetRequiresGrad(true);
+            input.Sigmoid().SumTensor().Backward();
+            ExpectTensor("Sigmoid backward gradient", input.Grad(), { 2 }, { 0.25f, 0.1875f });
+        }
+
+        {
+            Tensor input = MakeTensor({ 2 }, { 0, 1 });
+            input.SetRequiresGrad(true);
+            input.Tanh().SumTensor().Backward();
+            const float tanhOne = std::tanh(1.0f);
+            ExpectTensor("Tanh backward gradient", input.Grad(), { 2 },
+                { 1, 1.0f - tanhOne * tanhOne });
+        }
+    });
+
+    Run("Grad recording is restored after Backward", []
+    {
+        Tensor input = MakeTensor({ 1 }, { 2 });
+        input.SetRequiresGrad(true);
+
+        input.Pow(2.0f).SumTensor().Backward();
+
+        if (!Tensor::IsGradEnabled())
+        {
+            std::cerr << "FAIL Grad recording is restored after Backward: grad mode stayed disabled\n";
+            ++failures;
+            return;
+        }
+
+        Tensor subsequentOperation = input * 3.0f;
+        if (!subsequentOperation.RequiresGrad())
+        {
+            std::cerr << "FAIL Grad recording is restored after Backward: later operation has no graph\n";
+            ++failures;
+            return;
+        }
+
+        std::cout << "PASS Grad recording is restored after Backward\n";
+    });
+
+    Run("Disabled grad mode suppresses graph recording", []
+    {
+        Tensor input = MakeTensor({ 2 }, { 2, 3 });
+        input.SetRequiresGrad(true);
+
+        Tensor::SetGradEnabled(false);
+        Tensor result = input.Pow(2.0f);
+        Tensor::SetGradEnabled(true);
+
+        if (result.RequiresGrad())
+        {
+            std::cerr << "FAIL Disabled grad mode suppresses graph recording: result requires grad\n";
+            ++failures;
+            return;
+        }
+
+        ExpectTensor("Disabled grad mode preserves numeric result", result,
+            { 2 }, { 4, 9 });
+    });
+
     if (failures != 0)
     {
         std::cerr << failures << " test(s) failed.\n";
