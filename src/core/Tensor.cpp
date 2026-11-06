@@ -4268,6 +4268,7 @@ Tensor Tensor::IndexSelect(size_t dim, const Tensor& indices) const
     Tensor result(resultShape);
 
     std::vector<size_t> selectedIndices(indices.Size());
+
     for (size_t i = 0; i < indices.Size(); ++i)
     {
         selectedIndices[i] = static_cast<size_t>(indices.At({ i }));

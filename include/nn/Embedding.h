@@ -14,7 +14,6 @@ public:
         m_weights.SetRequiresGrad(true);
     }
 
-    // tokenIds can have any shape. The output appends embeddingDim to that shape.
     Tensor Forward(const Tensor& tokenIds) const
     {
         Tensor contiguousTokenIds = tokenIds.IsContiguous()

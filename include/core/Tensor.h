@@ -320,6 +320,7 @@ public:
     static Tensor Stack(const std::vector<Tensor>& tensors, size_t dim);
 
 	// Verilen eksendeki, verilen indeksleri seçerek yeni bir tensor oluşturur.
+    // Kısaca, bir tensörün seçtiğin boyutundaki elemanları
     Tensor IndexSelect(size_t dim, const Tensor& indices) const;
 
 private:
