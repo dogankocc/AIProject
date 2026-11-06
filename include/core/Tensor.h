@@ -14,7 +14,7 @@ struct TensorAutogradState
     std::shared_ptr<Tensor> grad;
     bool requiresGrad = false;
     bool isLeaf = true;
-    std::shared_ptr<Tinynn::Autograd::AutogradNode> node;
+    std::shared_ptr<AIProject::Autograd::AutogradNode> node;
 };
 
 class Tensor
@@ -348,6 +348,8 @@ public:
     Tensor& Grad();
 
     bool RequiresGrad() const;
+    static bool IsGradEnabled();
+    static void SetGradEnabled(bool enabled);
     void SetRequiresGrad(bool value);
 
     bool IsLeaf() const;

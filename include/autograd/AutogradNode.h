@@ -7,7 +7,7 @@
 
 class Tensor;
 
-namespace Tinynn::Autograd
+namespace AIProject::Autograd
 {
     struct AutogradNode
     {

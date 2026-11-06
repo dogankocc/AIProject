@@ -5,6 +5,32 @@
 #include <sstream>
 #include <random>
 
+namespace
+{
+    thread_local bool s_gradEnabled = true;
+
+    class GradModeGuard
+    {
+    public:
+        GradModeGuard()
+            : m_previous(Tensor::IsGradEnabled())
+        {
+            Tensor::SetGradEnabled(false);
+        }
+
+        ~GradModeGuard()
+        {
+            Tensor::SetGradEnabled(m_previous);
+        }
+
+        GradModeGuard(const GradModeGuard&) = delete;
+        GradModeGuard& operator=(const GradModeGuard&) = delete;
+
+    private:
+        bool m_previous;
+    };
+}
+
 Tensor::Tensor()
 {
 }
@@ -372,7 +398,7 @@ void Tensor::AttachViewBackward(
     Tensor& result,
     std::function<Tensor(const Tensor&)> gradientTransform) const
 {
-    if (!RequiresGrad())
+    if (!IsGradEnabled() || !RequiresGrad())
     {
         return;
     }
@@ -380,7 +406,7 @@ void Tensor::AttachViewBackward(
     auto input = std::make_shared<Tensor>(*this);
     result.m_autograd->requiresGrad = true;
     result.m_autograd->isLeaf = false;
-    result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+    result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
     result.m_autograd->node->operationName = "View";
     result.m_autograd->node->parents.push_back(input);
     result.m_autograd->node->backward =
@@ -793,12 +819,12 @@ Tensor Tensor::operator+(const Tensor& other) const
     // AutoGrad
     //----------------------------------
 
-    if (m_autograd->requiresGrad || other.m_autograd->requiresGrad)
+    if (IsGradEnabled() && (m_autograd->requiresGrad || other.m_autograd->requiresGrad))
     {
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Add";
 
@@ -879,12 +905,12 @@ Tensor Tensor::operator-(const Tensor& other) const
         }
     }
 
-    if (m_autograd->requiresGrad || other.m_autograd->requiresGrad)
+    if (IsGradEnabled() && (m_autograd->requiresGrad || other.m_autograd->requiresGrad))
     {
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Sub";
 
@@ -967,12 +993,12 @@ Tensor Tensor::operator*(const Tensor& other) const
         }
     }
 
-    if (m_autograd->requiresGrad || other.m_autograd->requiresGrad)
+    if (IsGradEnabled() && (m_autograd->requiresGrad || other.m_autograd->requiresGrad))
     {
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Mul";
 
@@ -1060,13 +1086,13 @@ Tensor Tensor::operator/(const Tensor& other) const
     // AutoGrad
     //----------------------------------
 
-    if (m_autograd->requiresGrad || other.m_autograd->requiresGrad)
+    if (IsGradEnabled() && (m_autograd->requiresGrad || other.m_autograd->requiresGrad))
     {
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Div";
 
@@ -1145,14 +1171,14 @@ Tensor Tensor::operator*(float scalar) const
             result.At(indices) = At(indices) * scalar;
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto lhs = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "MulScalar";
         result.m_autograd->node->parents.push_back(lhs);
@@ -1197,14 +1223,14 @@ Tensor Tensor::operator/(float scalar) const
             result.At(indices) = At(indices) / scalar;
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto lhs = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "MulScalar";
         result.m_autograd->node->parents.push_back(lhs);
@@ -1451,13 +1477,13 @@ Tensor Tensor::Clamp(float minValue, float maxValue) const
         }
     }
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "Clamp";
         result.m_autograd->node->parents.push_back(input);
         result.m_autograd->node->backward =
@@ -1507,13 +1533,13 @@ Tensor Tensor::ClampMin(float minValue) const
         }
     }
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "ClampMin";
         result.m_autograd->node->parents.push_back(input);
         result.m_autograd->node->backward = [input, minValue](Tensor& output)
@@ -1561,13 +1587,13 @@ Tensor Tensor::ClampMax(float maxValue) const
         }
     }
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "ClampMax";
         result.m_autograd->node->parents.push_back(input);
         result.m_autograd->node->backward = [input, maxValue](Tensor& output)
@@ -1908,7 +1934,7 @@ Tensor Tensor::SumTensor() const
 {
     Tensor result({}, Sum());
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
@@ -1917,7 +1943,7 @@ Tensor Tensor::SumTensor() const
 
         result.m_autograd->node =
             std::make_shared<
-            Tinynn::Autograd::AutogradNode>();
+            AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "SumTensor";
 
@@ -1985,14 +2011,14 @@ Tensor Tensor::Sum(size_t dim, bool keepDim) const
     {
         result = result.Unsqueeze(dim);
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Sum";
 
@@ -2088,14 +2114,14 @@ Tensor Tensor::Prod(size_t dim) const
         result.At(resultIndices) = product;
     }
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "Prod";
         result.m_autograd->node->parents.push_back(input);
         result.m_autograd->node->backward = [input, dim](Tensor& output)
@@ -2240,14 +2266,14 @@ Tensor Tensor::Max(size_t dim, bool keepDim) const
         maxIndices[i] = maxIndex;
     }
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "Max";
         result.m_autograd->node->parents.push_back(input);
         result.m_autograd->node->backward =
@@ -2342,14 +2368,14 @@ Tensor Tensor::Min(size_t dim, bool keepDim) const
         minIndices[i] = minIndex;
     }
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "Min";
         result.m_autograd->node->parents.push_back(input);
         result.m_autograd->node->backward =
@@ -2635,14 +2661,14 @@ Tensor Tensor::Log() const
             result.At(indices) = std::log(value);
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Log";
 
@@ -2694,14 +2720,14 @@ Tensor Tensor::Exp() const
             result.At(indices) = std::exp(At(indices));
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Exp";
 
@@ -2764,14 +2790,14 @@ Tensor Tensor::Sqrt() const
             result.At(indices) = std::sqrt(value);
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Sqrt";
 
@@ -2824,14 +2850,14 @@ Tensor Tensor::Abs() const
             result.At(indices) = std::abs(At(indices));
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Abs";
 
@@ -2882,14 +2908,14 @@ Tensor Tensor::Pow(float exponent) const
             result.At(indices) =std::pow(At(indices), exponent);
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Pow";
 
@@ -2992,14 +3018,14 @@ Tensor Tensor::ReLU() const
             result.At(indices) = std::max(0.0f, At(indices));
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "ReLU";
 
@@ -3050,14 +3076,14 @@ Tensor Tensor::Sigmoid() const
             result.At(indices) = 1.0f / (1.0f + std::exp(-At(indices)));
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Sigmoid";
 
@@ -3111,14 +3137,14 @@ Tensor Tensor::Tanh() const
             result.At(indices) = std::tanh(At(indices));
         }
     }
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
 
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
 
         result.m_autograd->node->operationName = "Tanh";
 
@@ -3281,14 +3307,14 @@ Tensor Tensor::MatMul(const Tensor& other) const
        B[0][1] seçmek 5x6 lık matrislerden sadece birini seçmek demek olur.
     */
 
-    if (RequiresGrad() || other.RequiresGrad())
+    if (IsGradEnabled() && (RequiresGrad() || other.RequiresGrad()))
     {
         auto lhs = std::make_shared<Tensor>(*this);
         auto rhs = std::make_shared<Tensor>(other);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
-        result.m_autograd->node = std::make_shared<Tinynn::Autograd::AutogradNode>();
+        result.m_autograd->node = std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "MatMul";
 
         if (lhs->RequiresGrad())
@@ -3915,7 +3941,7 @@ Tensor Tensor::Where(
             : (*falseTensor.m_data)[falseOffset];
     }
 
-    if (trueTensor.RequiresGrad() || falseTensor.RequiresGrad())
+    if (IsGradEnabled() && (trueTensor.RequiresGrad() || falseTensor.RequiresGrad()))
     {
         auto trueInput = std::make_shared<Tensor>(trueTensor);
         auto falseInput = std::make_shared<Tensor>(falseTensor);
@@ -3923,7 +3949,7 @@ Tensor Tensor::Where(
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "Where";
 
         if (trueInput->RequiresGrad())
@@ -4071,13 +4097,13 @@ Tensor Tensor::MaskedSelect(const Tensor& mask) const
         }
     }
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "MaskedSelect";
         result.m_autograd->node->parents.push_back(input);
         result.m_autograd->node->backward =
@@ -4180,12 +4206,12 @@ Tensor Tensor::Concat(const std::vector<Tensor>& tensors, size_t dim)
         requiresGrad = requiresGrad || input->RequiresGrad();
     }
 
-    if (requiresGrad)
+    if (IsGradEnabled() && requiresGrad)
     {
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "Concat";
 
         for (const auto& input : inputs)
@@ -4292,14 +4318,14 @@ Tensor Tensor::IndexSelect(size_t dim, const Tensor& indices) const
         result.At(resultIndices) = At(sourceIndices);
     }
 
-    if (RequiresGrad())
+    if (IsGradEnabled() && RequiresGrad())
     {
         auto input = std::make_shared<Tensor>(*this);
 
         result.m_autograd->requiresGrad = true;
         result.m_autograd->isLeaf = false;
         result.m_autograd->node =
-            std::make_shared<Tinynn::Autograd::AutogradNode>();
+            std::make_shared<AIProject::Autograd::AutogradNode>();
         result.m_autograd->node->operationName = "IndexSelect";
         result.m_autograd->node->parents.push_back(input);
         result.m_autograd->node->backward =
@@ -4351,6 +4377,16 @@ Tensor& Tensor::Grad()
 bool Tensor::RequiresGrad() const
 {
     return m_autograd->requiresGrad;
+}
+
+bool Tensor::IsGradEnabled()
+{
+    return s_gradEnabled;
+}
+
+void Tensor::SetGradEnabled(bool enabled)
+{
+    s_gradEnabled = enabled;
 }
 
 void Tensor::SetRequiresGrad(bool value)
@@ -4409,6 +4445,8 @@ void Tensor::Backward()
     {
         m_autograd->grad = std::make_shared<Tensor>(Tensor::Ones(m_shape));
     }
+
+    GradModeGuard gradModeGuard;
 
     for (auto it = topo.rbegin(); it != topo.rend(); ++it)
     {

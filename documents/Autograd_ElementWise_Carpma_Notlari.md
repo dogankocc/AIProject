@@ -159,7 +159,7 @@ Ardından:
 
 ```cpp
 result.m_node =
-    std::make_shared<Tinynn::Autograd::AutogradNode>();
+    std::make_shared<AIProject::Autograd::AutogradNode>();
 ```
 
 Çarpma işlemine ait bir Autograd düğümü oluşturuyoruz. Düğüm, işlemin geriye doğru nasıl hesaplanacağını saklayacak.
